@@ -151,6 +151,9 @@ generateMonolith mode maybeOutput (Summary.Summary _ project _ _ _) graph rootNa
                 HtmlBuilder mvar ->
                   putMVar mvar (Html.sandwich name monolith)
 
+                JavaScriptBuilder mvar ->
+                  putMVar mvar monolith
+
                 Html maybeDir fileName ->
                   do  path <- toWritablePath maybeDir fileName
                       IO.writeBuilder path (Html.sandwich name monolith)
@@ -236,6 +239,7 @@ data Output
   | Html (Maybe FilePath) FilePath
   | JavaScript (Maybe FilePath) FilePath
   | HtmlBuilder (MVar B.Builder)
+  | JavaScriptBuilder (MVar B.Builder)
 
 
 toWritablePath :: Maybe FilePath -> FilePath -> IO FilePath

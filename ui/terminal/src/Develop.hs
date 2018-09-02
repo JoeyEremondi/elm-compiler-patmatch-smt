@@ -154,9 +154,36 @@ serveCode file =
 serveElm :: FilePath -> Snap ()
 serveElm file =
   do  guard (takeExtension file == ".elm")
-      modifyResponse (setContentType "text/html")
-      writeBuilder =<< liftIO (compileToHtmlBuilder file)
+      rq <- getRequest
+      case rqParam "output" rq of
+        Just ["js"] ->
+          do modifyResponse (setContentType "application/javascript")
+             writeBuilder =<< liftIO (compileToJsBuilder file)
 
+        _ ->
+          do modifyResponse (setContentType "text/html")
+             writeBuilder =<< liftIO (compileToHtmlBuilder file)
+
+
+compileToJsBuilder :: FilePath -> IO B.Builder
+compileToJsBuilder file =
+  do  mvar1 <- newEmptyMVar
+      mvar2 <- newEmptyMVar
+
+      let reporter = Progress.Reporter (\_ -> return ()) (\_ -> return True) (putMVar mvar1)
+      let output = Just (Output.JavaScriptBuilder mvar2)
+
+      void $ Task.try reporter $
+        do  summary <- Project.getRoot
+            Project.compile Output.Dev Output.Client output Nothing summary [file]
+
+      result <- takeMVar mvar1
+      case result of
+        Just exit ->
+          return $ Generate.makePageHtml "Errors" (Just (Exit.toJson exit))
+
+        Nothing ->
+          takeMVar mvar2
 
 compileToHtmlBuilder :: FilePath -> IO B.Builder
 compileToHtmlBuilder file =

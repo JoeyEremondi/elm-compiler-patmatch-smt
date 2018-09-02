@@ -153,7 +153,9 @@ reactor =
         "After running that command, you would have a server at <http://localhost:8000>\
         \ that helps with development. It shows your files like a file viewer. If you\
         \ click on an Elm file, it will compile it for you! And you can just press\
-        \ the refresh button in the browser to recompile things."
+        \ the refresh button in the browser to recompile things.\
+        \ If you want to get the compiled version of an Elm file as JavaScript\
+        \ append \"?output=js\"."
 
     reactorFlags =
       flags Develop.Flags
