@@ -9,6 +9,17 @@ Follow [these instructions][installer]!
 
  [installer]: https://guide.elm-lang.org/install.html
 
+## Build
+
+```
+cabal install --only-dependencies
+# maybe needed:
+cabal install --only-dependencies --with-ghc ghc-8.2
+
+cabal install --allow-newer
+# or
+cabal install --allow-newer --with-ghc ghc-8.2
+
 
 ## Help
 
