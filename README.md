@@ -11,14 +11,13 @@ Follow [these instructions][installer]!
 
 ## Build
 
-```
-cabal install --only-dependencies
-# maybe needed:
-cabal install --only-dependencies --with-ghc ghc-8.2
+With Stack:
 
-cabal install --allow-newer
-# or
-cabal install --allow-newer --with-ghc ghc-8.2
+1. Install Stack (https://www.haskellstack.org)
+2. Clone the repo
+3. `cd compiler`
+4. `stack init`
+5. `stack build`
 
 
 ## Help
