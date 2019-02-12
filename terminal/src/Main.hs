@@ -155,7 +155,8 @@ reactor =
         \ click on an Elm file, it will compile it for you! And you can just press\
         \ the refresh button in the browser to recompile things.\
         \ If you want to get the compiled version of an Elm file as JavaScript\
-        \ append \"?output=js\"."
+        \ append \"?output=js\".\
+        \ Use the time-traveling debugger with \"?debug=true\"."
 
     reactorFlags =
       flags Develop.Flags
