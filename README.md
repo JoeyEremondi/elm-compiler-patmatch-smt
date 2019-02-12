@@ -35,15 +35,21 @@ This Elm-fork contains two new features in the Elm reactor:
 
 1. The reactor can now emit compiled JavaScript instead of Html with the `output=js` parameter:
 
-`<script src="http://localhost:8000/src/Main.elm?output=js" charset="utf-8"></script>`
+```html
+<script src="http://localhost:8000/src/Main.elm?output=js" charset="utf-8"></script>
+```
 
 2. The reactor can now emit code compiled in debug mode with the `debug=true` parameter:
 
 `http://localhost:8000/src/Main.elm?debug=true`
 
 or in combination with JavaScript output:
-`<script src="http://localhost:8000/src/Main.elm?output=js&debug=true" charset="utf-8"></script>`
+```html
+<script src="http://localhost:8000/src/Main.elm?output=js&debug=true" charset="utf-8"></script>
+```
 
+
+For a working example check out [elm-reactor-example](https://github.com/CurrySoftware/elm-reactor-example).
 
 
 ## Future
