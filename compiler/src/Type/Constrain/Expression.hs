@@ -22,7 +22,8 @@ import qualified Type.Constrain.Pattern as Pattern
 import qualified Type.Instantiate as Instantiate
 import Type.Type as Type hiding (Descriptor(..))
 
-
+import Data.IORef
+import System.IO.Unsafe (unsafePerformIO)
 
 -- CONSTRAIN
 
@@ -38,8 +39,21 @@ type RTV =
   Map.Map N.Name Type
 
 
+type TypeMap = [(Can.Expr, Type)]
+
+{-# NOINLINE globalTypeMap #-}
+globalTypeMap :: IORef TypeMap 
+globalTypeMap = (unsafePerformIO $ newIORef [])
+
 constrain :: RTV -> Can.Expr -> Expected Type -> IO Constraint
-constrain rtv (A.At region expression) expected =
+constrain rtv topExpr@(A.At region expression) expected = do
+  oldMap <- readIORef globalTypeMap
+  let theType = 
+        case expected of
+          (NoExpectation t) -> t
+          (FromContext _ _ t) -> t
+          (FromAnnotation _ _ _ t) -> t
+  writeIORef globalTypeMap ((topExpr, theType) : oldMap)
   case expression of
     Can.VarLocal name ->
       return (CLocal region name expected)
@@ -108,8 +122,8 @@ constrain rtv (A.At region expression) expected =
       constrainRecursiveDefs rtv defs
       =<< constrain rtv body expected
 
-    Can.LetDestruct pattern expr body ->
-      constrainDestruct rtv region pattern expr
+    Can.LetDestruct pt expr body ->
+      constrainDestruct rtv region pt expr
       =<< constrain rtv body expected
 
     Can.Accessor field ->
@@ -364,9 +378,9 @@ constrainCase rtv region expr branches expected =
 
 
 constrainCaseBranch :: RTV -> Can.CaseBranch -> PExpected Type -> Expected Type -> IO Constraint
-constrainCaseBranch rtv (Can.CaseBranch pattern expr) pExpect bExpect =
+constrainCaseBranch rtv (Can.CaseBranch pt expr) pExpect bExpect =
   do  (Pattern.State headers pvars revCons) <-
-        Pattern.add pattern pExpect Pattern.emptyState
+        Pattern.add pt pExpect Pattern.emptyState
 
       CLet [] pvars headers (CAnd (reverse revCons))
         <$> constrain rtv expr bExpect
@@ -510,12 +524,12 @@ glToType glType =
 
 
 constrainDestruct :: RTV -> R.Region -> Can.Pattern -> Can.Expr -> Constraint -> IO Constraint
-constrainDestruct rtv region pattern expr bodyCon =
+constrainDestruct rtv region pt expr bodyCon =
   do  patternVar <- mkFlexVar
       let patternType = VarN patternVar
 
       (Pattern.State headers pvars revCons) <-
-        Pattern.add pattern (PNoExpectation patternType) Pattern.emptyState
+        Pattern.add pt (PNoExpectation patternType) Pattern.emptyState
 
       exprCon <-
         constrain rtv expr (FromContext region Destructure patternType)
@@ -701,13 +715,13 @@ argsHelp args state =
           let resultType = VarN resultVar
           return $ Args [resultVar] resultType resultType state
 
-    pattern : otherArgs ->
+    pt : otherArgs ->
       do  argVar <- mkFlexVar
           let argType = VarN argVar
 
           (Args vars tipe result newState) <-
             argsHelp otherArgs =<<
-              Pattern.add pattern (PNoExpectation argType) state
+              Pattern.add pt (PNoExpectation argType) state
 
           return (Args (argVar:vars) (FunN argType tipe) result newState)
 
@@ -736,12 +750,12 @@ typedArgsHelp rtv name index args srcResultType state =
       do  resultType <- Instantiate.fromSrcType rtv srcResultType
           return $ TypedArgs resultType resultType state
 
-    (pattern@(A.At region _), srcType) : otherArgs ->
+    (pt@(A.At region _), srcType) : otherArgs ->
       do  argType <- Instantiate.fromSrcType rtv srcType
           let expected = PFromContext region (PTypedArg name index) argType
 
           (TypedArgs tipe resultType newState) <-
             typedArgsHelp rtv name (Index.next index) otherArgs srcResultType =<<
-              Pattern.add pattern expected state
+              Pattern.add pt expected state
 
           return (TypedArgs (FunN argType tipe) resultType newState)

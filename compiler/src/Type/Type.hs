@@ -51,7 +51,7 @@ import qualified Type.UnionFind as UF
 
 
 data Constraint
-  = CTrue
+  = CTrue 
   | CSaveTheEnvironment
   | CEqual R.Region E.Category Type (E.Expected Type)
   | CLocal R.Region N.Name (E.Expected Type)
