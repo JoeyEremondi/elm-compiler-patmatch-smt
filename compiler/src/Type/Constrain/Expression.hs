@@ -23,7 +23,6 @@ import qualified Type.Instantiate as Instantiate
 import Type.Type as Type hiding (Descriptor(..))
 
 import Data.IORef
-import System.IO.Unsafe (unsafePerformIO)
 
 -- CONSTRAIN
 
@@ -39,21 +38,16 @@ type RTV =
   Map.Map N.Name Type
 
 
-type TypeMap = [(Can.Expr, Type)]
-
-{-# NOINLINE globalTypeMap #-}
-globalTypeMap :: IORef TypeMap 
-globalTypeMap = (unsafePerformIO $ newIORef [])
 
 constrain :: RTV -> Can.Expr -> Expected Type -> IO Constraint
 constrain rtv topExpr@(A.At region expression) expected = do
-  oldMap <- readIORef globalTypeMap
+  oldMap <- readIORef Type.globalTypeMap
   let theType = 
         case expected of
           (NoExpectation t) -> t
           (FromContext _ _ t) -> t
           (FromAnnotation _ _ _ t) -> t
-  writeIORef globalTypeMap ((topExpr, theType) : oldMap)
+  writeIORef Type.globalTypeMap ((topExpr, theType) : oldMap)
   case expression of
     Can.VarLocal name ->
       return (CLocal region name expected)

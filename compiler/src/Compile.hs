@@ -88,12 +88,19 @@ compile flag pkg importDict interfaces source =
 
 runTypeInference :: L.Localizer -> Can.Module -> Result i (Map.Map N.Name Can.Annotation)
 runTypeInference localizer canonical =
-  case unsafePerformIO (Type.run =<< Type.constrain canonical) of
-    Right annotations ->
-      Result.ok annotations
+  let result = do
+        c <- Type.constrain canonical
+        ret <- Type.run c
+        return ret
+  in case unsafePerformIO result of
+      Right annotations ->
+        let  
+          x = show annotations
+        in 
+          Result.ok annotations
 
-    Left errors ->
-      Result.throw (Error.Type localizer errors)
+      Left errors ->
+        Result.throw (Error.Type localizer errors)
 
 
 

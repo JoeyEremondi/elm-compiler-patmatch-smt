@@ -30,7 +30,8 @@ data Canonical =
     { _package :: !Pkg.Name
     , _module :: !N.Name
     }
-    deriving (Ord)
+    deriving (Ord, Show)  
+
 
 
 instance Eq Canonical where

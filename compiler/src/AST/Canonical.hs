@@ -183,6 +183,7 @@ data PatternCtorArg =
 
 
 data Annotation = Forall FreeVars Type
+  deriving (Show)
 
 
 type FreeVars = Map.Map N.Name ()
@@ -196,15 +197,18 @@ data Type
   | TUnit
   | TTuple Type Type (Maybe Type)
   | TAlias ModuleName.Canonical N.Name [(N.Name, Type)] AliasType
+  deriving (Show)   
 
 
 data AliasType
   = Holey Type
   | Filled Type
+  deriving (Show)
 
 
 data FieldType =
   FieldType {-# UNPACK #-} !Word16 Type
+  deriving (Show)
 
 
 -- NOTE: The Word16 marks the source order, but it may not be available

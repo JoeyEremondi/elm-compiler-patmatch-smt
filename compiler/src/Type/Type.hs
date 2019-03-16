@@ -25,6 +25,7 @@ module Type.Type
   , nameToRigid
   , toAnnotation
   , toErrorType
+  , globalTypeMap
   )
   where
 
@@ -45,6 +46,15 @@ import qualified Reporting.Region as R
 import qualified Type.Error as ET
 import qualified Type.UnionFind as UF
 
+import Data.IORef
+import System.IO.Unsafe (unsafePerformIO)
+
+
+type TypeMap = [(Can.Expr, Type)]
+
+{-# NOINLINE globalTypeMap #-}
+globalTypeMap :: IORef TypeMap 
+globalTypeMap = (unsafePerformIO $ newIORef [])
 
 
 -- CONSTRAINTS
