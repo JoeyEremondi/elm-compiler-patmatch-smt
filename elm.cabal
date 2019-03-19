@@ -221,6 +221,7 @@ Executable elm
         Type.Constrain.Pattern
         Type.Error
         Type.Instantiate
+        Type.PatternMatch
         Type.Occurs
         Type.Solve
         Type.Type
