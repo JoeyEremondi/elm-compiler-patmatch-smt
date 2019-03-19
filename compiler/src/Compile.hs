@@ -27,6 +27,7 @@ import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 import qualified Type.Constrain.Module as Type
 import qualified Type.Solve as Type
+import Type.Type (printAllTypes)
 
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -88,19 +89,16 @@ compile flag pkg importDict interfaces source =
 
 runTypeInference :: L.Localizer -> Can.Module -> Result i (Map.Map N.Name Can.Annotation)
 runTypeInference localizer canonical =
-  let result = do
-        c <- Type.constrain canonical
-        ret <- Type.run c
-        return ret
-  in case unsafePerformIO result of
-      Right annotations ->
-        let  
-          x = show annotations
-        in 
-          Result.ok annotations
+  unsafePerformIO $ do
+    c <- Type.constrain canonical
+    result <- Type.run c
+    case result of
+      Right annotations -> do 
+          printAllTypes
+          return $ Result.ok annotations
 
       Left errors ->
-        Result.throw (Error.Type localizer errors)
+        return $ Result.throw (Error.Type localizer errors)
 
 
 

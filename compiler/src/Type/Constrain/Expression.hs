@@ -22,6 +22,7 @@ import qualified Type.Constrain.Pattern as Pattern
 import qualified Type.Instantiate as Instantiate
 import Type.Type as Type hiding (Descriptor(..))
 
+ 
 import Data.IORef
 
 -- CONSTRAIN
@@ -41,124 +42,121 @@ type RTV =
 
 constrain :: RTV -> Can.Expr -> Expected Type -> IO Constraint
 constrain rtv topExpr@(A.At region expression) expected = do
-  oldMap <- readIORef Type.globalTypeMap
-  let theType = 
-        case expected of
-          (NoExpectation t) -> t
-          (FromContext _ _ t) -> t
-          (FromAnnotation _ _ _ t) -> t
-  writeIORef Type.globalTypeMap ((topExpr, theType) : oldMap)
-  case expression of
-    Can.VarLocal name ->
-      return (CLocal region name expected)
+  freshVar <- mkFlexVar
+  modifyIORef Type.globalVarMap (Map.insert region freshVar)
+  let labelConstr = CEqual region (error "TODO category for equal") (Type.VarN freshVar) expected
+  retConstr <- case expression of
+        Can.VarLocal name ->
+          return (CLocal region name expected)
 
-    Can.VarTopLevel _ name ->
-      return (CLocal region name expected)
+        Can.VarTopLevel _ name ->
+          return (CLocal region name expected)
 
-    Can.VarKernel _ _ ->
-      return CTrue
+        Can.VarKernel _ _ ->
+          return CTrue
 
-    Can.VarForeign _ name annotation ->
-      return $ CForeign region name annotation expected
+        Can.VarForeign _ name annotation ->
+          return $ CForeign region name annotation expected
 
-    Can.VarCtor _ _ name _ annotation ->
-      return $ CForeign region name annotation expected
+        Can.VarCtor _ _ name _ annotation ->
+          return $ CForeign region name annotation expected
 
-    Can.VarDebug _ name annotation ->
-      return $ CForeign region name annotation expected
+        Can.VarDebug _ name annotation ->
+          return $ CForeign region name annotation expected
 
-    Can.VarOperator op _ _ annotation ->
-      return $ CForeign region op annotation expected
+        Can.VarOperator op _ _ annotation ->
+          return $ CForeign region op annotation expected
 
-    Can.Str _ ->
-      return $ CEqual region String Type.string expected
+        Can.Str _ ->
+          return $ CEqual region String Type.string expected
 
-    Can.Chr _ ->
-      return $ CEqual region Char Type.char expected
+        Can.Chr _ ->
+          return $ CEqual region Char Type.char expected
 
-    Can.Int _ ->
-      do  var <- mkFlexNumber
-          return $ exists [var] $ CEqual region E.Number (VarN var) expected
+        Can.Int _ ->
+          do  var <- mkFlexNumber
+              return $ exists [var] $ CEqual region E.Number (VarN var) expected
 
-    Can.Float _ ->
-      return $ CEqual region Float Type.float expected
+        Can.Float _ ->
+          return $ CEqual region Float Type.float expected
 
-    Can.List elements ->
-      constrainList rtv region elements expected
+        Can.List elements ->
+          constrainList rtv region elements expected
 
-    Can.Negate expr ->
-      do  numberVar <- mkFlexNumber
-          let numberType = VarN numberVar
-          numberCon <- constrain rtv expr (FromContext region Negate numberType)
-          let negateCon = CEqual region E.Number numberType expected
-          return $ exists [numberVar] $ CAnd [ numberCon, negateCon ]
+        Can.Negate expr ->
+          do  numberVar <- mkFlexNumber
+              let numberType = VarN numberVar
+              numberCon <- constrain rtv expr (FromContext region Negate numberType)
+              let negateCon = CEqual region E.Number numberType expected
+              return $ exists [numberVar] $ CAnd [ numberCon, negateCon ]
 
-    Can.Binop op _ _ annotation leftExpr rightExpr ->
-      constrainBinop rtv region op annotation leftExpr rightExpr expected
+        Can.Binop op _ _ annotation leftExpr rightExpr ->
+          constrainBinop rtv region op annotation leftExpr rightExpr expected
 
-    Can.Lambda args body ->
-      constrainLambda rtv region args body expected
+        Can.Lambda args body ->
+          constrainLambda rtv region args body expected
 
-    Can.Call func args ->
-      constrainCall rtv region func args expected
+        Can.Call func args ->
+          constrainCall rtv region func args expected
 
-    Can.If branches finally ->
-      constrainIf rtv region branches finally expected
+        Can.If branches finally ->
+          constrainIf rtv region branches finally expected
 
-    Can.Case expr branches ->
-      constrainCase rtv region expr branches expected
+        Can.Case expr branches ->
+          constrainCase rtv region expr branches expected
 
-    Can.Let def body ->
-      constrainDef rtv def
-      =<< constrain rtv body expected
+        Can.Let def body ->
+          constrainDef rtv def
+          =<< constrain rtv body expected
 
-    Can.LetRec defs body ->
-      constrainRecursiveDefs rtv defs
-      =<< constrain rtv body expected
+        Can.LetRec defs body ->
+          constrainRecursiveDefs rtv defs
+          =<< constrain rtv body expected
 
-    Can.LetDestruct pt expr body ->
-      constrainDestruct rtv region pt expr
-      =<< constrain rtv body expected
+        Can.LetDestruct pt expr body ->
+          constrainDestruct rtv region pt expr
+          =<< constrain rtv body expected
 
-    Can.Accessor field ->
-      do  extVar <- mkFlexVar
-          fieldVar <- mkFlexVar
-          let extType = VarN extVar
-          let fieldType = VarN fieldVar
-          let recordType = RecordN (Map.singleton field fieldType) extType
-          return $ exists [ fieldVar, extVar ] $
-            CEqual region (Accessor field) (FunN recordType fieldType) expected
+        Can.Accessor field ->
+          do  extVar <- mkFlexVar
+              fieldVar <- mkFlexVar
+              let extType = VarN extVar
+              let fieldType = VarN fieldVar
+              let recordType = RecordN (Map.singleton field fieldType) extType
+              return $ exists [ fieldVar, extVar ] $
+                CEqual region (Accessor field) (FunN recordType fieldType) expected
 
-    Can.Access expr (A.At accessRegion field) ->
-      do  extVar <- mkFlexVar
-          fieldVar <- mkFlexVar
-          let extType = VarN extVar
-          let fieldType = VarN fieldVar
-          let recordType = RecordN (Map.singleton field fieldType) extType
+        Can.Access expr (A.At accessRegion field) ->
+          do  extVar <- mkFlexVar
+              fieldVar <- mkFlexVar
+              let extType = VarN extVar
+              let fieldType = VarN fieldVar
+              let recordType = RecordN (Map.singleton field fieldType) extType
 
-          let context = RecordAccess (A.toRegion expr) (getAccessName expr) accessRegion field
-          recordCon <- constrain rtv expr (FromContext region context recordType)
+              let context = RecordAccess (A.toRegion expr) (getAccessName expr) accessRegion field
+              recordCon <- constrain rtv expr (FromContext region context recordType)
 
-          return $ exists [ fieldVar, extVar ] $
-            CAnd
-              [ recordCon
-              , CEqual region (Access field) fieldType expected
-              ]
+              return $ exists [ fieldVar, extVar ] $
+                CAnd
+                  [ recordCon
+                  , CEqual region (Access field) fieldType expected
+                  ]
 
-    Can.Update name expr fields ->
-      constrainUpdate rtv region name expr fields expected
+        Can.Update name expr fields ->
+          constrainUpdate rtv region name expr fields expected
 
-    Can.Record fields ->
-      constrainRecord rtv region fields expected
+        Can.Record fields ->
+          constrainRecord rtv region fields expected
 
-    Can.Unit ->
-      return $ CEqual region Unit UnitN expected
+        Can.Unit ->
+          return $ CEqual region Unit UnitN expected
 
-    Can.Tuple a b maybeC ->
-      constrainTuple rtv region a b maybeC expected
+        Can.Tuple a b maybeC ->
+          constrainTuple rtv region a b maybeC expected
 
-    Can.Shader _uid _src glType ->
-      constrainShader region glType expected
+        Can.Shader _uid _src glType ->
+          constrainShader region glType expected
+  return (CAnd [retConstr, labelConstr])
 
 
 
@@ -542,24 +540,29 @@ constrainDef rtv def bodyCon =
       do  (Args vars tipe resultType (Pattern.State headers pvars revCons)) <-
             constrainArgs args
 
+          freshVar <- mkFlexVar
+          modifyIORef Type.globalVarMap (Map.insert region freshVar)
+          let labelConstr = CEqual region (error "TODO category for equal") (Type.VarN freshVar) (NoExpectation tipe)
+
           exprCon <-
             constrain rtv expr (NoExpectation resultType)
 
           return $
-            CLet
-              { _rigidVars = []
-              , _flexVars = vars
-              , _header = Map.singleton name (A.At region tipe)
-              , _headerCon =
-                  CLet
-                    { _rigidVars = []
-                    , _flexVars = pvars
-                    , _header = headers
-                    , _headerCon = CAnd (reverse revCons)
-                    , _bodyCon = exprCon
-                    }
-              , _bodyCon = bodyCon
-              }
+            CAnd [labelConstr, 
+              CLet
+                { _rigidVars = []
+                , _flexVars = vars
+                , _header = Map.singleton name (A.At region tipe)
+                , _headerCon =
+                    CLet
+                      { _rigidVars = []
+                      , _flexVars = pvars
+                      , _header = headers
+                      , _headerCon = CAnd (reverse revCons)
+                      , _bodyCon = exprCon
+                      }
+                , _bodyCon = bodyCon
+                }]
 
     Can.TypedDef (A.At region name) freeVars typedArgs expr srcResultType ->
       do  let newNames = Map.difference freeVars rtv
@@ -569,25 +572,30 @@ constrainDef rtv def bodyCon =
           (TypedArgs tipe resultType (Pattern.State headers pvars revCons)) <-
             constrainTypedArgs newRtv name typedArgs srcResultType
 
+          freshVar <- mkFlexVar
+          modifyIORef Type.globalVarMap (Map.insert region freshVar)
+          let labelConstr = CEqual region (error "TODO category for equal") (Type.VarN freshVar) (NoExpectation tipe)
+
           let expected = FromAnnotation name (length typedArgs) TypedBody resultType
           exprCon <-
             constrain newRtv expr expected
 
           return $
-            CLet
-              { _rigidVars = Map.elems newRigids
-              , _flexVars = []
-              , _header = Map.singleton name (A.At region tipe)
-              , _headerCon =
-                  CLet
-                    { _rigidVars = []
-                    , _flexVars = pvars
-                    , _header = headers
-                    , _headerCon = CAnd (reverse revCons)
-                    , _bodyCon = exprCon
-                    }
-              , _bodyCon = bodyCon
-              }
+            CAnd [labelConstr, 
+              CLet
+                { _rigidVars = Map.elems newRigids
+                , _flexVars = []
+                , _header = Map.singleton name (A.At region tipe)
+                , _headerCon =
+                    CLet
+                      { _rigidVars = []
+                      , _flexVars = pvars
+                      , _header = headers
+                      , _headerCon = CAnd (reverse revCons)
+                      , _bodyCon = exprCon
+                      }
+                , _bodyCon = bodyCon
+                } ]
 
 
 

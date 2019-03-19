@@ -37,7 +37,8 @@ run constraint =
         solve Map.empty outermostRank pools emptyState constraint
 
       case errors of
-        [] ->
+        [] -> do
+          Type.computeAllTypes 
           Right <$> traverse Type.toAnnotation env
 
         _ ->

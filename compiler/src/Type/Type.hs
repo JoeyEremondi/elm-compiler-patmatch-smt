@@ -26,12 +26,16 @@ module Type.Type
   , toAnnotation
   , toErrorType
   , globalTypeMap
+  , globalVarMap
+  , printAllTypes
+  , computeAllTypes
   )
   where
 
 
 import Control.Monad.State.Strict (StateT, liftIO)
 import qualified Control.Monad.State.Strict as State
+import           Control.Monad
 import Data.Foldable (foldrM)
 import qualified Data.Map.Strict as Map
 import Data.Word (Word32)
@@ -50,11 +54,29 @@ import Data.IORef
 import System.IO.Unsafe (unsafePerformIO)
 
 
-type TypeMap = [(Can.Expr, Type)]
+type VarMap = Map.Map R.Region Variable
+type TypeMap = Map.Map R.Region Can.Type
 
 {-# NOINLINE globalTypeMap #-}
 globalTypeMap :: IORef TypeMap 
-globalTypeMap = (unsafePerformIO $ newIORef [])
+globalTypeMap = (unsafePerformIO $ newIORef Map.empty)
+
+{-# NOINLINE globalVarMap #-}
+globalVarMap :: IORef VarMap 
+globalVarMap = (unsafePerformIO $ newIORef Map.empty)
+
+--Print the type for each expression in our hacked map
+printAllTypes = do
+  theTypes <- readIORef globalTypeMap
+  forM (Map.toList theTypes) $ \(region,tipe) ->
+    putStrLn $ (show region) ++ " : " ++ (show tipe)
+
+--Given the list of type-variables for each expression
+--Get the associated types
+computeAllTypes = do
+  varMap <- readIORef globalVarMap
+  computed <- forM  varMap toCanType
+  writeIORef globalTypeMap computed
 
 
 -- CONSTRAINTS
@@ -351,6 +373,13 @@ toAnnotation variable =
       (tipe, NameState freeVars _ _ _ _ _) <-
         State.runStateT (variableToCanType variable) (makeNameState userNames)
       return $ Can.Forall freeVars tipe
+
+toCanType :: Variable -> IO Can.Type
+toCanType variable =
+        do  userNames <- getVarNames variable Map.empty
+            (tipe, NameState freeVars _ _ _ _ _) <-
+              State.runStateT (variableToCanType variable) (makeNameState userNames)
+            return tipe
 
 
 variableToCanType :: Variable -> StateT NameState IO Can.Type
