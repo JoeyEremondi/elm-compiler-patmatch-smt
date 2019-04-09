@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE PatternSynonyms #-}
 module Type.PatternMatch where
 
 import Control.Monad.State.Strict (StateT, liftIO)
@@ -40,11 +41,14 @@ data TypeEffect_ =
     | Unit
     | Tuple TypeEffect TypeEffect (Maybe TypeEffect)
     
-data TypeEffect = WithEffect TypeEffect_ Variable 
+
+
+infix 9 :@    
+data TypeEffect =  TypeEffect_ :@ Variable  
 
 data LitPattern = 
     SetVar Variable
-    | Ctor String [LitPattern]
+    | Ctor String [LitPattern] 
     | Proj Int LitPattern 
 
 data Constraint =
@@ -56,6 +60,8 @@ data Constraint =
 
 p1 === p2 = 
     CSubset p1 p2 /\ CSubset p2 p1
+
+v1 << v2 = CSubset (SetVar v1) (SetVar v2)  
 
 instance Semigroup Constraint where
     CTrue <> c = c
@@ -114,23 +120,31 @@ addEffectVars t = do
                     Just t -> Just <$> addEffectVars t 
                 Tuple <$> addEffectVars t1 <*> addEffectVars t2 <*> (return mt3)
     constraintVar <- UF.fresh ()
-    return $ innerType `WithEffect` constraintVar
+    return $ innerType :@ constraintVar
+
+freshTE :: IO TypeEffect
+freshTE = do
+    tipe <- Var <$> UF.fresh () --TODO what descriptor?
+    effect <- UF.fresh () --TODO what descriptor?
+    return $ tipe :@ effect
 
 unifyTypes :: TypeEffect -> TypeEffect -> IO ()
-unifyTypes (WithEffect _ v1) (WithEffect _ v2) =
+unifyTypes (_ :@ v1) (_ :@ v2) =
     UF.union v1 v2 ()
     --TODO do we need to unify sub-vars?
 
 
 
 
-constrainExpr :: Map.Map R.Region TypeEffect -> Can.Expr ->  Gamma -> IO Constraint 
-constrainExpr tyMap (A.At region expr) _Gamma = 
+constrainExpr :: Map.Map R.Region TypeEffect -> Gamma -> Can.Expr ->   IO (TypeEffect,  Constraint) 
+constrainExpr tyMap _Gamma (A.At region expr)  =  
     case Map.lookup region tyMap of
-        Just ty -> constrainExpr_ expr ty _Gamma
+        Just ty -> do
+            c <- constrainExpr_ expr ty _Gamma
+            return (ty, c)
         Nothing -> error "Region not in type map"
   where
-    self = constrainExpr tyMap
+    self  = constrainExpr tyMap 
     constrainExpr_ :: Can.Expr_ -> TypeEffect -> Gamma -> IO Constraint 
     constrainExpr_ (Can.VarLocal name) t _Gamma = do
         let (tipe, constr) = instantiate (_Gamma Map.! name)
@@ -143,8 +157,18 @@ constrainExpr tyMap (A.At region expr) _Gamma =
     constrainExpr_ (Can.VarOperator expr1 expr2 expr3 expr4) t _Gamma = return CTrue --TODO built-in types for operators 
     constrainExpr_ (Can.Binop expr1 expr2 expr3 expr4 expr5 expr6) t _Gamma = _ 
     constrainExpr_ (Can.Case expr1 expr2) t _Gamma = _ 
-    constrainExpr_ (Can.Lambda expr1 expr2) t _Gamma = _ 
-    constrainExpr_ (Can.Call expr1 expr2) t _Gamma = _ 
+    constrainExpr_ (Can.Lambda expr1 expr2) ( (Fun (t1 :@ e1) (t2 :@ v2)) :@ v3 ) _Gamma = _ 
+    constrainExpr_ (Can.Call fun args) (_ :@ retEffect) _Gamma = do
+         (funTy, funConstr) <- self _Gamma fun 
+         (argTEs, argConstrs) <- unzip <$> mapM (self _Gamma) args  
+         return $ argHelper funTy argTEs ( funConstr /\ CAnd argConstrs) 
+            where
+                --Loop to compute the return type
+                --At each application, make sure the possible arg patterns are less than the patterns the function expects
+                --Finally, make sure the patterns of the whole expression contain every possible pattern the functions return
+                argHelper (_ :@ funEffect) [] accum = funEffect << retEffect  /\ accum
+                argHelper (Fun (tdom :@ edom) cod :@ efun) (targ :@ earg : rest) accum = 
+                    argHelper cod rest (earg << edom /\ accum ) 
     constrainExpr_ (Can.If expr1 expr2) t _Gamma = _ 
     constrainExpr_ (Can.Let expr1 expr2) t _Gamma = _ 
     constrainExpr_ (Can.LetRec expr1 expr2) t _Gamma = _ 
@@ -165,3 +189,4 @@ constrainExpr tyMap (A.At region expr) _Gamma =
     constrainExpr_ (Can.VarDebug expr1 expr2 expr3) t _Gamma = return CTrue
     constrainExpr_ Can.Unit t _Gamma = return CTrue 
     constrainExpr_ (Can.Shader expr1 expr2 expr3) t _Gamma = return CTrue     
+    constrainExpr_ _ _ _ = error $ "Impossible type-expr combo "
