@@ -16,7 +16,9 @@ With Stack:
 5. `stack build`
 
 
-## Install
+## InstallDu hast schon die ein oder andere Zeile Code geschrieben und kannst mit git umgehen? GNU/Linux-Systeme sind dir nicht fremd?
+Du hast eigentlich keine Lust mehr auf Java mitsamt den `NullPointerExceptions` und `InvalidArgumentExceptions`?
+
 
 The built Elm executable will reside inside `.stack-work/dist/<your-arch>/<cabal-version>/build/elm/elm`.
 To install it link or copy it to the `/usr/bin/` folder.
@@ -65,3 +67,5 @@ If you are a corporate Elm-user and want to support us or if you are interested 
 ## Support
 
 Please contact [elm@curry-software.com](mailto:elm@curry-software.com) for support.
+
+We also offer [Elm Consulting Services](https://www.curry-software.com/en/elm-services/) for general help with Elm.
