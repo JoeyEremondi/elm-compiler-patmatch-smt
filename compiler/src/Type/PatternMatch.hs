@@ -56,6 +56,8 @@ data LitPattern =
     | Proj Int LitPattern 
     | Top
     | Bottom 
+    | Intersect LitPattern LitPattern
+    | Union LitPattern LitPattern
 
 data Constraint =
     CAnd [Constraint]
@@ -64,8 +66,14 @@ data Constraint =
     | CSubset LitPattern LitPattern
     | CTrue
 
-p1 === p2 = 
-    CSubset p1 p2 /\ CSubset p2 p1
+-- p1 === p2 = 
+--     CSubset p1 p2 /\ CSubset p2 p1
+
+union :: (Subsetable a) => [a] -> LitPattern
+union = foldr (\ a b -> toLit a `Union` b) Bottom 
+
+intersect :: (Subsetable a) => [a] -> LitPattern
+intersect = foldr (\ a b -> toLit a `Intersect` b) Bottom 
 
 class Subsetable a where
     toLit :: a -> LitPattern
@@ -75,6 +83,9 @@ instance Subsetable LitPattern where
     
 instance Subsetable Variable where
     toLit = SetVar
+
+instance Subsetable TypeEffect where
+    toLit (_ :@ v) = toLit v
 
 (<<) :: (Subsetable a, Subsetable b ) => a -> b -> Constraint
 v1 << v2 = CSubset (toLit v1) (toLit v2)  
@@ -172,16 +183,16 @@ constrainExpr tyMap _Gamma (A.At region expr)  =
     --Turn into TypeEffect
     constrainExpr_ (Can.VarOperator expr1 expr2 expr3 expr4) t _Gamma = return CTrue --TODO built-in types for operators 
     constrainExpr_ (Can.Binop expr1 expr2 expr3 expr4 expr5 expr6) t _Gamma = return CTrue --TODO built-in types for operators  
-    constrainExpr_ (Can.Case discr branches) (discType :@ inputPatterns) _Gamma = do
-        let coveredPatterns = (_ :: LitPattern)
-        let coveredConstr =  inputPatterns << coveredPatterns
+    constrainExpr_ (Can.Case discr branches) inputPatterns _Gamma = do
+        let litBranches = map (\ (Can.CaseBranch pat rhs) -> (canPatToLit pat, rhs) ) branches
+        let coveredConstr =  inputPatterns << union (map fst litBranches)
         branchConstr <- CAnd <$> 
-            (forM branches $ 
-                \(Can.CaseBranch pat rhs) -> do
+            (forM litBranches $ 
+                \(lit, rhs) -> do
                     return _ ) 
         return $ coveredConstr /\ branchConstr --TODO safety constraint separately?
     constrainExpr_ (Can.Lambda expr1 expr2) ( (Fun (t1 :@ e1) (t2 :@ v2)) :@ v3 ) _Gamma = _ 
-    constrainExpr_ (Can.Call fun args) (_ :@ retEffect) _Gamma = do
+    constrainExpr_ (Can.Call fun args) retEffect _Gamma = do
          (funTy, funConstr) <- self _Gamma fun 
          (argTEs, argConstrs) <- unzip <$> mapM (self _Gamma) args  
          return $ argHelper funTy argTEs ( funConstr /\ CAnd argConstrs) 
@@ -196,21 +207,31 @@ constrainExpr tyMap _Gamma (A.At region expr)  =
     constrainExpr_ (Can.Let def inExpr)  t _Gamma = 
         snd<$>constrainDef tyMap _Gamma def 
     constrainExpr_ (Can.LetDestruct expr1 expr2 expr3) t _Gamma = _ 
-    constrainExpr_ (Can.Accessor expr) t _Gamma = _ 
-    constrainExpr_ (Can.Access expr1 expr2) t _Gamma = _ 
-    constrainExpr_ (Can.Update expr1 expr2 expr3) t _Gamma = _ 
-    constrainExpr_ (Can.Record expr) t _Gamma = _ 
-    constrainExpr_ (Can.Tuple expr1 expr2 expr3) t _Gamma = _ 
-    constrainExpr_ (Can.List expr) t _Gamma = _ --TODO fold over list type 
-    constrainExpr_ (Can.Chr c) (_:@v) _Gamma = return $ (litChar c) << (SetVar v) 
-    constrainExpr_ (Can.Str s) t _Gamma = return CTrue
-    constrainExpr_ (Can.Int i) t _Gamma =  return CTrue
+    constrainExpr_ (Can.Accessor expr) t _Gamma = error "TODO records" 
+    constrainExpr_ (Can.Access expr1 expr2) t _Gamma = error "TODO records"
+    constrainExpr_ (Can.Update expr1 expr2 expr3) t _Gamma = error "TODO records"
+    constrainExpr_ (Can.Record expr) t _Gamma = error "TODO records"
+    constrainExpr_ (Can.Tuple expr1 expr2 Nothing) (_ :@ vTuple) _Gamma = do
+        (elemEffect1, constr1) <- self _Gamma expr1
+        (elemEffect2, constr2) <- self _Gamma expr2
+        return $ CAnd [constr1, constr2, (litPair elemEffect1 elemEffect2) << vTuple]
+    constrainExpr_ (Can.Tuple expr1 expr2 (Just expr3)) (_ :@ vTuple) _Gamma = do
+        (elemEffect1, constr1) <- self _Gamma expr1
+        (elemEffect2, constr2) <- self _Gamma expr2
+        (elemEffect3, constr3) <- self _Gamma expr3
+        return $ CAnd [constr1, constr2, constr3, (litTriple elemEffect1 elemEffect2 elemEffect3) << vTuple]  
+    constrainExpr_ (Can.List expr) t _Gamma = do
+        (typeEffects, constrs) <- unzip <$> forM expr (self _Gamma)
+        return $ (CAnd constrs) /\ (t << litList typeEffects )
+    constrainExpr_ (Can.Chr c) typeEffect _Gamma = return $ (litChar c) <<  typeEffect
+    constrainExpr_ (Can.Str s) typeEffect  _Gamma = return $ (litString s) << typeEffect
+    constrainExpr_ (Can.Int i) typeEffect  _Gamma =  return $ (litInt i) << typeEffect
     constrainExpr_ (Can.Float expr) t _Gamma = return CTrue
-    constrainExpr_ (Can.Negate expr) t _Gamma = return CTrue --TODO ints?
+    constrainExpr_ (Can.Negate expr) t _Gamma = error "TODO negation"
     constrainExpr_ (Can.VarKernel expr1 expr2) t _Gamma = return CTrue 
     constrainExpr_ (Can.VarForeign expr1 expr2 expr3) t _Gamma = return CTrue
     constrainExpr_ (Can.VarDebug expr1 expr2 expr3) t _Gamma = return CTrue
-    constrainExpr_ Can.Unit t _Gamma = return CTrue 
+    constrainExpr_ Can.Unit (_:@v) _Gamma = return $ litUnit << v 
     constrainExpr_ (Can.Shader expr1 expr2 expr3) t _Gamma = return CTrue     
     constrainExpr_ _ _ _ = error $ "Impossible type-expr combo "
 
@@ -239,13 +260,13 @@ canPatToLit  (A.At info pat) =
         (Can.PCtor { Can._p_home = p__p_home, Can._p_type = p__p_type, Can._p_union = p__p_union, Can._p_name = ctorName, Can._p_index = p__p_index, Can._p_args = ctorArgs }) -> Ctor (N.toString ctorName) (map (canPatToLit . Can._arg) ctorArgs)  
 
 litUnit = Ctor "--Unit" []
-litPair l1 l2 = Ctor "--Pair" [l1, l2]
-litTriple l1 l2 l3 = Ctor "--Triple" [l1, l2, l3]
+litPair l1 l2 = Ctor "--Pair" [(toLit l1), (toLit l2)]
+litTriple l1 l2 l3 = Ctor "--Triple" (map toLit [l1, l2, l3])
 litList l = case l of
     [] -> litNull
     (h : t) -> litCons h (litList t)
 litNull = Ctor "--Null" []
-litCons h t = Ctor "--Cons" [h, t]
+litCons h t = Ctor "--Cons" [toLit h, toLit t]
 litTrue = Ctor "--True" []
 litFalse = Ctor "--False" []
 litChar c = Ctor ("--CHAR_" ++ unpack c) []
