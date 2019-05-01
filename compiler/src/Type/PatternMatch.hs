@@ -66,8 +66,11 @@ data Constraint =
     | CSubset LitPattern LitPattern
     | CTrue
 
--- p1 === p2 = 
---     CSubset p1 p2 /\ CSubset p2 p1
+p1 ==== p2 = 
+    let l1 = toLit p1
+        l2 = toLit p2
+    in
+    CSubset l1 l2 /\ CSubset l2 l1
 
 union :: (Subsetable a) => [a] -> LitPattern
 union = foldr (\ a b -> toLit a `Union` b) Bottom 
@@ -113,7 +116,7 @@ instantiate = error "TODO instantiate"
 generalize :: Gamma -> TypeEffect -> EffectScheme
 generalize = error "TODO generalize"
 
-(==>) = CImplies
+x ==> y = CImplies x y
 
 --Smart constructor for AND
 CAnd c1 /\ CAnd c2 = CAnd (c1 ++ c2)
@@ -198,11 +201,11 @@ constrainExpr tyMap _Gamma (A.At region expr)  =
          return $ argHelper funTy argTEs ( funConstr /\ CAnd argConstrs) 
             where
                 --Loop to compute the return type
-                --At each application, make sure the possible arg patterns are less than the patterns the function expects
-                --Finally, make sure the patterns of the whole expression contain every possible pattern the functions return
-                argHelper (_ :@ funEffect) [] accum = funEffect << retEffect  /\ accum
+                --At each application, instantiate the function's argument type to be the type of the given argument
+                --Finally, make sure the patterns of the whole expression is the pattern the function returns
+                argHelper funEffect [] accum = funEffect ==== retEffect  /\ accum
                 argHelper (Fun (tdom :@ edom) cod :@ efun) (targ :@ earg : rest) accum = 
-                    argHelper cod rest (earg << edom /\ accum ) 
+                    argHelper cod rest (earg ==== edom /\ accum ) 
     constrainExpr_ (Can.If expr1 expr2) t _Gamma = _ 
     constrainExpr_ (Can.Let def inExpr)  t _Gamma = 
         snd<$>constrainDef tyMap _Gamma def 
@@ -214,24 +217,24 @@ constrainExpr tyMap _Gamma (A.At region expr)  =
     constrainExpr_ (Can.Tuple expr1 expr2 Nothing) (_ :@ vTuple) _Gamma = do
         (elemEffect1, constr1) <- self _Gamma expr1
         (elemEffect2, constr2) <- self _Gamma expr2
-        return $ CAnd [constr1, constr2, (litPair elemEffect1 elemEffect2) << vTuple]
+        return $ CAnd [constr1, constr2, (litPair elemEffect1 elemEffect2) ==== vTuple]
     constrainExpr_ (Can.Tuple expr1 expr2 (Just expr3)) (_ :@ vTuple) _Gamma = do
         (elemEffect1, constr1) <- self _Gamma expr1
         (elemEffect2, constr2) <- self _Gamma expr2
         (elemEffect3, constr3) <- self _Gamma expr3
-        return $ CAnd [constr1, constr2, constr3, (litTriple elemEffect1 elemEffect2 elemEffect3) << vTuple]  
+        return $ CAnd [constr1, constr2, constr3, (litTriple elemEffect1 elemEffect2 elemEffect3) ==== vTuple]  
     constrainExpr_ (Can.List expr) t _Gamma = do
         (typeEffects, constrs) <- unzip <$> forM expr (self _Gamma)
-        return $ (CAnd constrs) /\ (t << litList typeEffects )
-    constrainExpr_ (Can.Chr c) typeEffect _Gamma = return $ (litChar c) <<  typeEffect
-    constrainExpr_ (Can.Str s) typeEffect  _Gamma = return $ (litString s) << typeEffect
-    constrainExpr_ (Can.Int i) typeEffect  _Gamma =  return $ (litInt i) << typeEffect
+        return $ (CAnd constrs) /\ (t ==== litList typeEffects )
+    constrainExpr_ (Can.Chr c) typeEffect _Gamma = return $ (litChar c) ====  typeEffect
+    constrainExpr_ (Can.Str s) typeEffect  _Gamma = return $ (litString s) ==== typeEffect
+    constrainExpr_ (Can.Int i) typeEffect  _Gamma =  return $ (litInt i) ==== typeEffect
     constrainExpr_ (Can.Float expr) t _Gamma = return CTrue
     constrainExpr_ (Can.Negate expr) t _Gamma = error "TODO negation"
     constrainExpr_ (Can.VarKernel expr1 expr2) t _Gamma = return CTrue 
     constrainExpr_ (Can.VarForeign expr1 expr2 expr3) t _Gamma = return CTrue
     constrainExpr_ (Can.VarDebug expr1 expr2 expr3) t _Gamma = return CTrue
-    constrainExpr_ Can.Unit (_:@v) _Gamma = return $ litUnit << v 
+    constrainExpr_ Can.Unit (_:@v) _Gamma = return $ litUnit ==== v 
     constrainExpr_ (Can.Shader expr1 expr2 expr3) t _Gamma = return CTrue     
     constrainExpr_ _ _ _ = error $ "Impossible type-expr combo "
 
