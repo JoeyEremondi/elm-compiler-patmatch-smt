@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -65,6 +67,8 @@ data Constraint =
     | CImplies Constraint Constraint
     | CSubset LitPattern LitPattern
     | CTrue
+
+newtype Safety = Safety Constraint
 
 p1 ==== p2 = 
     let l1 = toLit p1
@@ -164,9 +168,9 @@ unifyTypes (_ :@ v1) (_ :@ v2) =
     --TODO do we need to unify sub-vars?
 
 
+type ConstrainM m = (MonadIO m, MonadWriter [Safety] m ) 
 
-
-constrainExpr :: Map.Map R.Region TypeEffect -> Gamma -> Can.Expr ->   IO (TypeEffect,  Constraint) 
+constrainExpr :: (ConstrainM m) => Map.Map R.Region TypeEffect -> Gamma -> Can.Expr ->   m (TypeEffect,  Constraint) 
 constrainExpr tyMap _Gamma (A.At region expr)  =  
     case Map.lookup region tyMap of
         Just ty -> do
@@ -174,11 +178,12 @@ constrainExpr tyMap _Gamma (A.At region expr)  =
             return (ty, c)
         Nothing -> error "Region not in type map"
   where
+    self :: (ConstrainM m) => Gamma -> Can.Expr ->   m (TypeEffect,  Constraint) 
     self  = constrainExpr tyMap 
-    constrainExpr_ :: Can.Expr_ -> TypeEffect -> Gamma -> IO Constraint 
+    constrainExpr_ ::  (ConstrainM m) => Can.Expr_ -> TypeEffect -> Gamma -> m Constraint 
     constrainExpr_ (Can.VarLocal name) t _Gamma = do
         let (tipe, constr) = instantiate (_Gamma Map.! name)
-        unifyTypes t tipe
+        liftIO $ unifyTypes t tipe
         return CTrue
     constrainExpr_ (Can.VarTopLevel expr1 expr2) t _Gamma = error "TODO get type from imports"
     constrainExpr_ (Can.VarCtor expr1 expr2 expr3 expr4 expr5) t _Gamma = _ 
@@ -238,7 +243,7 @@ constrainExpr tyMap _Gamma (A.At region expr)  =
     constrainExpr_ (Can.Shader expr1 expr2 expr3) t _Gamma = return CTrue     
     constrainExpr_ _ _ _ = error $ "Impossible type-expr combo "
 
-constrainDef :: Map.Map R.Region TypeEffect -> Gamma -> Can.Def ->   IO (TypeEffect,  Constraint)
+constrainDef ::  (ConstrainM m) => Map.Map R.Region TypeEffect -> Gamma -> Can.Def ->   m (TypeEffect,  Constraint)
 constrainDef tipes _Gamma def = _
 
 
