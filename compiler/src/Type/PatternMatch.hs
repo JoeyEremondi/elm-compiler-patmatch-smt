@@ -113,12 +113,15 @@ instance Monoid Constraint where
     mempty = CTrue
 
 data EffectScheme =
-    Forall [Variable] TypeEffect Constraint Safety
+    Forall [Variable] TypeEffect Constraint
 
 type Gamma = Map.Map N.Name EffectScheme
 
 monoscheme tipe@(_ :@ var) lit =
-    Forall [] tipe (var ==== lit) (Safety [])
+    Forall [] tipe (var ==== lit)
+monoschemeVar :: TypeEffect -> EffectScheme
+monoschemeVar tipe = Forall [] tipe CTrue
+
 
 freeConstraintVars :: TypeEffect -> [Variable]
 freeConstraintVars ty = [] --TODO implement
@@ -126,7 +129,7 @@ freeConstraintVars ty = [] --TODO implement
 instantiate :: EffectScheme -> (TypeEffect, Constraint)
 instantiate = error "TODO instantiate"
 
-generalize :: Gamma -> TypeEffect -> EffectScheme
+generalize :: Gamma -> TypeEffect -> Constraint  -> EffectScheme
 generalize = error "TODO generalize"
 
 x ==> y = CImplies x y
@@ -180,6 +183,13 @@ unifyTypes (_ :@ v1) (_ :@ v2) =
 
 type ConstrainM m = (MonadIO m, MonadWriter Safety m )
 
+newtype ConstrainMonad a = CM {
+    runCM :: WriterT Safety IO a
+} deriving (Functor, Applicative, Monad, MonadIO, MonadWriter Safety)
+
+runCMIO :: ConstrainMonad a -> IO (a, Safety)
+runCMIO c = runWriterT (runCM c) 
+
 tellSafety x = tell $ Safety [x]
 
 --Given a type and an  effect-variable for each expression,
@@ -228,7 +238,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
                     let newEnv = envAfterMatch tyMap (toLit inputPatterns) pat
                     let newPathConstr = canBeInBranch /\ pathConstr
                     (rhsTy, rhsConstrs) <- self (Map.union newEnv _Gamma, newPathConstr) rhs
-                    return (v, 
+                    return (v,  
                         (canBeInBranch ==> (v ==== rhsTy)) 
                         /\ ((CNot canBeInBranch) ==> (v ==== Bottom))))
         --The result of the whole thing is the union of all the results of the branches
@@ -282,9 +292,16 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
                             /\ ((litTrue << ifType ) ==> (retType ==== thenType) )
                             /\ ((((litTrue `Intersect` (toLit ifType)) ==== Bottom)) ==> (retType ==== Bottom))))
         return $ elseCond /\ (CAnd branchConds) /\ (t ==== union ((toLit elseType) : (map toLit branchTypes)))
-    constrainExpr_ (Can.Let def inExpr)  t _GammaPath =
-        snd<$>constrainDef tyMap _GammaPath def
+    constrainExpr_ (Can.Let def inExpr)  t _GammaPath@(_Gamma, pathConstr) = do
+        --We don't generate any constraints when we constrain a definition
+        --Because those constraints get wrapped up in the EffectScheme
+        --And are instantiated at each use of x
+        envExt <- liftIO $ constrainDef tyMap _GammaPath def
+        (bodyType, bodyConstr) <- self (Map.union envExt _Gamma, pathConstr) inExpr
+        unifyTypes bodyType t
+        return bodyConstr
     constrainExpr_ (Can.LetDestruct pat letExp inExp) t _GammaPath@(_Gamma, pathCond) = do
+        --TODO need to generalize?
         let lit = canPatToLit pat
         --Can't have a recursive let on a pattern-match, since won't be behind a lambda
         --TODO is this right?
@@ -325,17 +342,48 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
     constrainExpr_ (Can.Shader expr1 expr2 expr3) t _GammaPath = return CTrue
     constrainExpr_ _ _ _ = error $ "Impossible type-expr combo "
 
-constrainDef ::  (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Def ->   m (TypeEffect,  Constraint)
-constrainDef tipes _GammaPath def = _
 
+--Takes place in the IO monad, not our ConstrainM
+--Because we want to generate a separate set of safety constraints for this definition
+--TODO check all this
+constrainDef ::  Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Def ->   IO Gamma 
+constrainDef tyMap _GammaPath def = do
+    (x, defType, defConstr) <- case def of
+        --Get the type of the body, and add it into the environment as a monoscheme
+        --To start our argument-processing loop
+        (Can.Def (A.At _ x) funArgs body@(A.At exprRegion _ )) -> do
+            let exprType = (tyMap Map.! exprRegion)
+            (exprConstr, safety) <- runCMIO $ constrainDef_  funArgs body exprType (Map.insert x (monoschemeVar exprType) _Gamma)
+            return (x, exprType, exprConstr)
+        (Can.TypedDef (A.At _ x) _ patTypes body@(A.At exprRegion _) _) -> do
+            let exprType = (tyMap Map.! exprRegion)
+            (exprConstr, safety) <- runCMIO $ constrainDef_  (map fst patTypes) body exprType (Map.insert x (monoschemeVar exprType) _Gamma)
+            return (x, exprType, exprConstr)
+    --Now that we have types and constraints for the body, we generalize them over all free variables
+    --not  occurring in Gamma, and return an environment mapping the def name to this scheme
+    --Generalize should check that the safety constraints from the body will always hold
+    --If the constraints on the types hold
+    let scheme = generalize (fst _GammaPath) defType defConstr 
+    return $ Map.singleton x scheme
+    where
+        constrainDef_  (argPat : argList) body ((Fun dom cod) :@ vFun) _Gamma = _
+            --Add the argument pattern vars to the dictionary, then check the rest at the codomain type
+            constrainDef_ argList body cod (Map.union (envAfterMatch tyMap (toLit dom) argPat) _Gamma)
+        constrainDef_  [] body exprType _Gamma = do
+            (bodyType, bodyConstr) <- constrainExpr tyMap _ body
+            unifyTypes bodyType exprType
+            --Now that we have the type and constraints for our definition body
+            --We can generalize it into a type scheme and return a new environment 
+            --TODO run constraint solver at this point
+            return bodyConstr
 
---Given a variable V for a pattern expression, and the LHS of a case branch,
---Generate the constraint that the variable 
+--Convert to our pattern format
+--Used to generate safety constraints for pattern matches 
 canPatToLit ::  Can.Pattern -> LitPattern
 canPatToLit  (A.At info pat) =
     case pat of
         Can.PAnything -> Top
-        (Can.PVar x) -> _ Top
+        (Can.PVar x) -> Top
         (Can.PRecord p) -> error "TODO records"
         (Can.PAlias p1 p2) -> error "TODO Pattern alias"
         Can.PUnit -> litUnit
