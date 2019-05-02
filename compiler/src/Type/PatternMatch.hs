@@ -172,9 +172,9 @@ freshTE = do
     return $ tipe :@ effect
 
 
-unifyTypes :: TypeEffect -> TypeEffect -> IO ()
+unifyTypes :: (ConstrainM m) => TypeEffect -> TypeEffect -> m ()
 unifyTypes (_ :@ v1) (_ :@ v2) =
-    UF.union v1 v2 ()
+    liftIO $ UF.union v1 v2 ()
     --TODO do we need to unify sub-vars?
 
 
@@ -202,7 +202,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
     constrainExpr_ ::  (ConstrainM m) => Can.Expr_ -> TypeEffect -> (Gamma, Constraint) -> m Constraint
     constrainExpr_ (Can.VarLocal name) t (_Gamma, _) = do
         let (tipe, constr) = instantiate (_Gamma Map.! name)
-        liftIO $ unifyTypes t tipe 
+        unifyTypes t tipe 
         return CTrue
     constrainExpr_ (Can.VarTopLevel expr1 expr2) t _GammaPath = error "TODO get type from imports"
     constrainExpr_ (Can.VarCtor _ _ ctorName _ _) t _GammaPath =
@@ -243,7 +243,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
                 lamHelper [] t _GammaPath = do
                     --TODO need to unify types more?
                     (bodyType, bodyConstr) <- self _GammaPath body
-                    liftIO $ unifyTypes t  bodyType
+                    unifyTypes t  bodyType
                     return bodyConstr
                 lamHelper (argPat:argPats) t@( (Fun dom cod) :@ v3 ) (_Gamma, pathConstr) = do
                     --Emit a safety constraint saying that the argument must match the pattern
@@ -284,7 +284,19 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
         return $ elseCond /\ (CAnd branchConds) /\ (t ==== union ((toLit elseType) : (map toLit branchTypes)))
     constrainExpr_ (Can.Let def inExpr)  t _GammaPath =
         snd<$>constrainDef tyMap _GammaPath def
-    constrainExpr_ (Can.LetDestruct expr1 expr2 expr3) t _GammaPath = _
+    constrainExpr_ (Can.LetDestruct pat letExp inExp) t _GammaPath@(_Gamma, pathCond) = do
+        let lit = canPatToLit pat
+        --Can't have a recursive let on a pattern-match, since won't be behind a lambda
+        --TODO is this right?
+        (letType, letConstr) <- self _GammaPath letExp
+        --Safety constraint: must match whatever we are binding
+        tellSafety (letType << lit, region)
+        let envExt = envAfterMatch tyMap (toLit letType) pat
+        --TODO extend path cond
+        (bodyType, bodyConstr) <- self (Map.union envExt _Gamma, pathCond) inExp
+        --Whole expression has type of body
+        unifyTypes bodyType t
+        return $ letConstr /\ bodyConstr
     constrainExpr_ (Can.Accessor expr) t _GammaPath = error "TODO records"
     constrainExpr_ (Can.Access expr1 expr2) t _GammaPath = error "TODO records"
     constrainExpr_ (Can.Update expr1 expr2 expr3) t _GammaPath = error "TODO records"
