@@ -16,6 +16,9 @@ import Data.Foldable (foldrM)
 import qualified Data.Map.Strict as Map
 import Data.Word (Word32) 
 
+import qualified Data.Maybe as Maybe
+import Data.Foldable (toList)
+
 import Data.Text (unpack)
 
 import qualified AST.Canonical as Can
@@ -36,6 +39,8 @@ import Control.Monad.Writer
 
 import Data.Semigroup
 import Data.Monoid
+
+import qualified Data.List as List
 
 type Variable = UF.Point ()
 
@@ -174,20 +179,43 @@ oneLitSubst :: (Variable -> Variable) -> LitPattern -> LitPattern
 oneLitSubst sub (SetVar v) = SetVar $ sub v
 oneLitSub sub l = l
 
-typeSubst :: (Variable -> Variable) -> TypeEffect -> TypeEffect
-typeSubst sub (t :@ e) = oneTypeSubst sub ((oneTypeSubst sub <$> t) :@ e) 
+typeSubsts :: (Variable -> Variable) -> TypeEffect -> TypeEffect
+typeSubsts sub (t :@ e) = oneTypeSubst sub ((oneTypeSubst sub <$> t) :@ e) 
 
-constrSubst :: (Variable -> Variable) -> Constraint -> Constraint
-constrSubst sub (Fix c) =  oneConstrSubst sub (Fix $ (oneConstrSubst sub <$> c)) 
+constrSubsts :: (Variable -> Variable) -> Constraint -> Constraint
+constrSubsts sub (Fix c) =  oneConstrSubst sub (Fix $ (oneConstrSubst sub <$> c)) 
 
 litSubsts :: (Variable -> Variable) -> LitPattern -> LitPattern
 litSubsts sub (Fix l) = oneLitSubst sub (Fix $ (oneLitSubst sub <$> l)) 
 
-instantiate :: EffectScheme -> (TypeEffect, Constraint)
-instantiate = error "TODO instantiate"
+typeLocalVars (t :@ e) = [e]
+constrLocalVars (CSubset p1 p2) = (litFreeVars p1) ++ (litFreeVars p2)
+constrLocalVars c = []
+litLocalVars (SetVar v) = [v]
+litLovalVars l = []
+
+typeFreeVars (t :@ e) = List.nub $ e: concatMap typeLocalVars (toList t)
+constrFreeVars (Fix c) = List.nub $ concatMap constrLocalVars ((Fix c) : toList c)
+litFreeVars (Fix l) = List.nub $ concatMap litLocalVars ((Fix l) : toList l)
+schemeFreeVars (Forall v t c) = List.nub $ (typeFreeVars t) ++ (constrFreeVars c)
+
+instantiate :: EffectScheme -> IO (TypeEffect, Constraint)
+instantiate (Forall boundVars tipe constr) = do
+    freshVars <- forM [1 .. length boundVars] $ \ _ -> UF.fresh ()
+    let subList =  zip boundVars freshVars
+    let substFun x = Maybe.fromMaybe x (lookup x subList) 
+    return $ (typeSubsts substFun tipe, constrSubsts substFun constr)
+
 
 generalize :: Gamma -> TypeEffect -> Constraint  -> EffectScheme
-generalize = error "TODO generalize"
+generalize _Gamma tipe constr = 
+    let
+        allFreeVars = List.nub $ (typeFreeVars tipe) ++ (constrFreeVars constr)
+        gammaFreeVars = List.nub $ concatMap schemeFreeVars (Map.elems _Gamma) 
+    in
+        Forall (allFreeVars List.\\ gammaFreeVars) tipe constr
+
+
 
 (==>) ::  Constraint -> Constraint -> Constraint 
 x ==> y =  CImplies x y
@@ -270,7 +298,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
     self  = constrainExpr tyMap
     constrainExpr_ ::  (ConstrainM m) => Can.Expr_ -> TypeEffect -> (Gamma, Constraint) -> m Constraint
     constrainExpr_ (Can.VarLocal name) t (_Gamma, _) = do
-        let (tipe, constr) = instantiate (_Gamma Map.! name)
+        (tipe, constr) <- liftIO $ instantiate (_Gamma Map.! name)
         unifyTypes t tipe
         return CTrue
     constrainExpr_ (Can.VarTopLevel expr1 expr2) t _GammaPath = error "TODO get type from imports"
