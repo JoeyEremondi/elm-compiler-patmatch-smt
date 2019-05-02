@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ConstraintKinds #-}
@@ -37,21 +39,22 @@ import Data.Monoid
 
 type Variable = UF.Point ()
 
-data TypeEffect_ =
+data TypeEffect_ typeEffect =
     PlaceHolder N.Name
-    | Alias ModuleName.Canonical N.Name [(N.Name, TypeEffect)] TypeEffect
+    | Alias ModuleName.Canonical N.Name [(N.Name, typeEffect)] typeEffect
     | Var Variable
-    | App ModuleName.Canonical N.Name [TypeEffect]
-    | Fun TypeEffect TypeEffect
+    | App ModuleName.Canonical N.Name [typeEffect]
+    | Fun typeEffect typeEffect
     | EmptyRecord
-    | Record (Map.Map N.Name TypeEffect) TypeEffect
+    | Record (Map.Map N.Name typeEffect) typeEffect
     | Unit
-    | Tuple TypeEffect TypeEffect (Maybe TypeEffect)
+    | Tuple typeEffect typeEffect (Maybe typeEffect)
+    deriving (Functor, Traversable, Foldable)
 
 
 
 infix 9 :@
-data TypeEffect =  TypeEffect_ :@ Variable
+data TypeEffect =  (TypeEffect_ TypeEffect) :@ Variable
 
 data LitPattern =
     SetVar Variable
@@ -127,6 +130,12 @@ monoschemeVar tipe = Forall [] tipe CTrue
 freeConstraintVars :: TypeEffect -> [Variable]
 freeConstraintVars ty = [] --TODO implement
 
+traverseTE :: (TypeEffect -> TypeEffect) -> TypeEffect -> TypeEffect
+traverseTE f (t :@ e) = f ((f <$> t) :@ e)
+
+substs :: (Variable -> Variable) -> TypeEffect -> TypeEffect
+substs sub = traverseTE (\ (t :@ e) -> t :@ sub e)
+
 instantiate :: EffectScheme -> (TypeEffect, Constraint)
 instantiate = error "TODO instantiate"
 
@@ -145,7 +154,7 @@ c1 \/ c2 = COr [c1, c2]
 
 addEffectVars :: Type.Type -> IO TypeEffect
 addEffectVars t = do
-    (innerType :: TypeEffect_ ) <-
+    (innerType  ) <-
         case t of
             (Type.PlaceHolder t) ->
                 return $ PlaceHolder t
