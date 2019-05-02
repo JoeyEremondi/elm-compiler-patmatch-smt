@@ -229,7 +229,22 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
         --The result of the whole thing is the union of all the results of the branches
         let resultConstr = resultType ==== (union patVars)
         return (inputConstrs /\ resultConstr /\ CAnd branchConstrs) 
-    constrainExpr_ (Can.Lambda expr1 expr2) ( (Fun (t1 :@ e1) (t2 :@ v2)) :@ v3 ) _GammaPath = _
+    --Lambda base case: just typecheck the body if there are 0 args
+    constrainExpr_ (Can.Lambda [] body) t _GammaPath = do
+        --TODO need to unify types more?
+        (bodyType, bodyConstr) <- self _GammaPath body
+        liftIO $ unifyTypes t  bodyType
+        return bodyConstr
+    constrainExpr_ (Can.Lambda (argPat:argPats) body) t@( (Fun dom cod) :@ v3 ) (_Gamma, pathConstr) = do
+        --Emit a safety constraint saying that the argument must match the pattern
+        let litPat = canPatToLit argPat
+        tellSafety (dom << litPat, region)
+        --Get the environment to check the body
+        let newEnv = envAfterMatch tyMap (toLit v3) argPat
+        (bodyType, bodyConstr) <- self (Map.union newEnv _Gamma, pathConstr) body
+        --Equate the inferred body type with the given codomain type
+        liftIO $ unifyTypes cod  bodyType
+        return bodyConstr 
     constrainExpr_ (Can.Call fun args) retEffect _GammaPath = do
          (funTy, funConstr) <- self _GammaPath fun
          (argTEs, argConstrs) <- unzip <$> mapM (self _GammaPath) args
