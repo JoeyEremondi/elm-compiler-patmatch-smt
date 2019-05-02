@@ -202,12 +202,16 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
     constrainExpr_ ::  (ConstrainM m) => Can.Expr_ -> TypeEffect -> (Gamma, Constraint) -> m Constraint
     constrainExpr_ (Can.VarLocal name) t (_Gamma, _) = do
         let (tipe, constr) = instantiate (_Gamma Map.! name)
-        liftIO $ unifyTypes t tipe
+        liftIO $ unifyTypes t tipe 
         return CTrue
     constrainExpr_ (Can.VarTopLevel expr1 expr2) t _GammaPath = error "TODO get type from imports"
-    constrainExpr_ (Can.VarCtor expr1 expr2 expr3 expr4 expr5) t _GammaPath = _
-    --TODO: for ctor, get its (simple) type scheme and instantiate
-    --Turn into TypeEffect
+    constrainExpr_ (Can.VarCtor _ _ ctorName _ _) t _GammaPath =
+      --Traverse the simple type of the constructor until it's not an arrow type
+      --Collect the argument patterns, then apply the Ctor name to those patterns
+      return $ ctorLoop t [] CTrue
+        where
+            ctorLoop ((Fun dom cod) :@ v3) reverseAccum condAccum = ctorLoop cod (dom : reverseAccum) (condAccum /\ (v3 ==== litLambda))
+            ctorLoop (_ :@ ctorVar ) reverseAccum condAccum = condAccum /\ (ctorVar ==== (Ctor (N.toString ctorName) (map toLit $ reverse reverseAccum)) ) 
     constrainExpr_ (Can.VarOperator expr1 expr2 expr3 expr4) t _GammaPath = return CTrue --TODO built-in types for operators 
     constrainExpr_ (Can.Binop expr1 expr2 expr3 expr4 expr5 expr6) t _GammaPath = return CTrue --TODO built-in types for operators  
     constrainExpr_ (Can.Case discr branches) resultType (_Gamma, pathConstr) = do
