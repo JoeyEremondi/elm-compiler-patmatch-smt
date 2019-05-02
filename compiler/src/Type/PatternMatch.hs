@@ -230,21 +230,27 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
         let resultConstr = resultType ==== (union patVars)
         return (inputConstrs /\ resultConstr /\ CAnd branchConstrs) 
     --Lambda base case: just typecheck the body if there are 0 args
-    constrainExpr_ (Can.Lambda [] body) t _GammaPath = do
-        --TODO need to unify types more?
-        (bodyType, bodyConstr) <- self _GammaPath body
-        liftIO $ unifyTypes t  bodyType
-        return bodyConstr
-    constrainExpr_ (Can.Lambda (argPat:argPats) body) t@( (Fun dom cod) :@ v3 ) (_Gamma, pathConstr) = do
-        --Emit a safety constraint saying that the argument must match the pattern
-        let litPat = canPatToLit argPat
-        tellSafety (dom << litPat, region)
-        --Get the environment to check the body
-        let newEnv = envAfterMatch tyMap (toLit v3) argPat
-        (bodyType, bodyConstr) <- self (Map.union newEnv _Gamma, pathConstr) body
-        --Equate the inferred body type with the given codomain type
-        liftIO $ unifyTypes cod  bodyType
-        return bodyConstr 
+    
+    constrainExpr_ (Can.Lambda allArgPats body) t (_Gamma, pathConstr) =
+        lamHelper allArgPats t (_Gamma, pathConstr)
+            where
+                --TODO need to alter path condition?
+                lamHelper [] t _GammaPath = do
+                    --TODO need to unify types more?
+                    (bodyType, bodyConstr) <- self _GammaPath body
+                    liftIO $ unifyTypes t  bodyType
+                    return bodyConstr
+                lamHelper (argPat:argPats) t@( (Fun dom cod) :@ v3 ) (_Gamma, pathConstr) = do
+                    --Emit a safety constraint saying that the argument must match the pattern
+                    let litPat = canPatToLit argPat
+                    tellSafety (dom << litPat, region)
+                    --All values of function types must be lambdas, so we have a trivial constraint on v3
+                    let lamConstr = (v3 ==== litLambda)
+                    --Get the environment to check the body
+                    let newEnv = envAfterMatch tyMap (toLit dom) argPat
+                    --Check the body --TODO path constr?
+                    bodyConstr <- lamHelper argPats cod (Map.union newEnv _Gamma, pathConstr)
+                    return $ bodyConstr /\ lamConstr
     constrainExpr_ (Can.Call fun args) retEffect _GammaPath = do
          (funTy, funConstr) <- self _GammaPath fun
          (argTEs, argConstrs) <- unzip <$> mapM (self _GammaPath) args
@@ -336,6 +342,8 @@ envAfterMatch typesForRegions matchedPat (A.At region pat)  =
 
 
 --Helpers for generating literal patterns from builtin data types
+ctorLam = "--Lambda"
+litLambda = Ctor ctorLam []
 ctorUnit = "--Unit"
 litUnit = Ctor ctorUnit []
 
