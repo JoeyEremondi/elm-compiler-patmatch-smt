@@ -216,6 +216,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
     constrainExpr_ (Can.Binop expr1 expr2 expr3 expr4 expr5 expr6) t _GammaPath = return CTrue --TODO built-in types for operators  
     constrainExpr_ (Can.Case discr branches) resultType (_Gamma, pathConstr) = do
         (inputPatterns, inputConstrs) <- self (_Gamma, pathConstr) discr
+        --TODO negate previous branches
         let litBranches = map (\ (Can.CaseBranch pat rhs) -> (pat, canPatToLit pat, rhs) ) branches
         --Emit a safety constraint: must cover all possible inputs by our branch patterns
         tellSafety (pathConstr ==> (inputPatterns << union (map (\(_,b,_) -> b) litBranches)), region)
@@ -266,7 +267,21 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
                 argHelper funEffect [] accum = funEffect ==== retEffect  /\ accum
                 argHelper (Fun (tdom :@ edom) cod :@ efun) (targ :@ earg : rest) accum =
                     argHelper cod rest (earg ==== edom /\ accum )
-    constrainExpr_ (Can.If expr1 expr2) t _GammaPath = _
+    constrainExpr_ (Can.If conds elseExpr) t _GammaPath = do
+        (elseType, elseCond) <- self _GammaPath elseExpr
+        (branchTypes, branchConds) <- 
+            unzip <$> 
+                forM conds (
+                    \ (ifExp, thenExp) -> do
+                        retType <- liftIO $ UF.fresh () 
+                        (ifType, ifCond) <- self _GammaPath ifExp
+                        (thenType, thenCond) <- self _GammaPath thenExp 
+                        return (retType, 
+                            ifCond 
+                            /\ thenCond 
+                            /\ ((litTrue << ifType ) ==> (retType ==== thenType) )
+                            /\ ((((litTrue `Intersect` (toLit ifType)) ==== Bottom)) ==> (retType ==== Bottom))))
+        return $ elseCond /\ (CAnd branchConds) /\ (t ==== union ((toLit elseType) : (map toLit branchTypes)))
     constrainExpr_ (Can.Let def inExpr)  t _GammaPath =
         snd<$>constrainDef tyMap _GammaPath def
     constrainExpr_ (Can.LetDestruct expr1 expr2 expr3) t _GammaPath = _
