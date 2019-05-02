@@ -4,7 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
-
+  
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternSynonyms #-}
 module Type.PatternMatch where
@@ -12,12 +12,11 @@ module Type.PatternMatch where
 import Control.Monad.State.Strict (StateT, liftIO)
 import qualified Control.Monad.State.Strict as State
 import           Control.Monad
-import Data.Foldable (foldrM)
+import Data.Foldable (foldrM, toList)
 import qualified Data.Map.Strict as Map
-import Data.Word (Word32) 
+import Data.Word (Word32)
 
 import qualified Data.Maybe as Maybe
-import Data.Foldable (toList)
 
 import Data.Text (unpack)
 
@@ -28,7 +27,7 @@ import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as E
 import qualified Reporting.Region as R
-import qualified Type.Error as ET
+import qualified Type.Error as ET 
 import qualified Type.UnionFind as UF
 
 import Data.IORef
@@ -47,7 +46,7 @@ type Variable = UF.Point ()
 data TypeEffect_ typeEffect =
     PlaceHolder N.Name
     | Alias ModuleName.Canonical N.Name [(N.Name, typeEffect)] typeEffect
-    | Var Variable
+    -- | Var Variable
     | App ModuleName.Canonical N.Name [typeEffect]
     | Fun typeEffect typeEffect
     | EmptyRecord
@@ -77,7 +76,7 @@ pattern Ctor s l = Fix (Ctor_ s l)
 pattern Proj s i p = Fix (Proj_ s i p)
 pattern Top = Fix Top_
 pattern Bottom = Fix Bottom_
-pattern Union x y = Fix (Union_ x y) 
+pattern Union x y = Fix (Union_ x y)
 
 data Constraint_ pat self =
     CAnd_ [self]
@@ -172,7 +171,7 @@ oneTypeSubst :: (Variable -> Variable) -> TypeEffect -> TypeEffect
 oneTypeSubst sub (t :@ e) = t :@ (sub e)
 
 oneConstrSubst :: (Variable -> Variable) -> Constraint -> Constraint
-oneConstrSubst sub (CSubset p1 p2) = CSubset (litSubsts sub p1) (litSubsts sub p2)  
+oneConstrSubst sub (CSubset p1 p2) = CSubset (litSubsts sub p1) (litSubsts sub p2)
 oneConstrSubst sub c = c
 
 oneLitSubst :: (Variable -> Variable) -> LitPattern -> LitPattern
@@ -180,13 +179,13 @@ oneLitSubst sub (SetVar v) = SetVar $ sub v
 oneLitSub sub l = l
 
 typeSubsts :: (Variable -> Variable) -> TypeEffect -> TypeEffect
-typeSubsts sub (t :@ e) = oneTypeSubst sub ((oneTypeSubst sub <$> t) :@ e) 
+typeSubsts sub (t :@ e) = oneTypeSubst sub ((oneTypeSubst sub <$> t) :@ e)
 
 constrSubsts :: (Variable -> Variable) -> Constraint -> Constraint
-constrSubsts sub (Fix c) =  oneConstrSubst sub (Fix $ (oneConstrSubst sub <$> c)) 
+constrSubsts sub (Fix c) =  oneConstrSubst sub (Fix $ (oneConstrSubst sub <$> c))
 
 litSubsts :: (Variable -> Variable) -> LitPattern -> LitPattern
-litSubsts sub (Fix l) = oneLitSubst sub (Fix $ (oneLitSubst sub <$> l)) 
+litSubsts sub (Fix l) = oneLitSubst sub (Fix $ (oneLitSubst sub <$> l))
 
 typeLocalVars (t :@ e) = [e]
 constrLocalVars (CSubset p1 p2) = (litFreeVars p1) ++ (litFreeVars p2)
@@ -203,21 +202,21 @@ instantiate :: EffectScheme -> IO (TypeEffect, Constraint)
 instantiate (Forall boundVars tipe constr) = do
     freshVars <- forM [1 .. length boundVars] $ \ _ -> UF.fresh ()
     let subList =  zip boundVars freshVars
-    let substFun x = Maybe.fromMaybe x (lookup x subList) 
+    let substFun x = Maybe.fromMaybe x (lookup x subList)
     return $ (typeSubsts substFun tipe, constrSubsts substFun constr)
 
 
 generalize :: Gamma -> TypeEffect -> Constraint  -> EffectScheme
-generalize _Gamma tipe constr = 
+generalize _Gamma tipe constr =
     let
         allFreeVars = List.nub $ (typeFreeVars tipe) ++ (constrFreeVars constr)
-        gammaFreeVars = List.nub $ concatMap schemeFreeVars (Map.elems _Gamma) 
+        gammaFreeVars = List.nub $ concatMap schemeFreeVars (Map.elems _Gamma)
     in
         Forall (allFreeVars List.\\ gammaFreeVars) tipe constr
 
 
 
-(==>) ::  Constraint -> Constraint -> Constraint 
+(==>) ::  Constraint -> Constraint -> Constraint
 x ==> y =  CImplies x y
 
 --Smart constructor for AND
@@ -230,15 +229,14 @@ c1 /\ c2 =  CAnd [c1, c2]
 c1 \/ c2 = COr [c1, c2]
 
 addEffectVars :: Type.Type -> IO TypeEffect
+addEffectVars (Type.AliasN t1 t2 t3 actualType) = addEffectVars actualType
 addEffectVars t = do
-    (innerType  ) <-
+    innerType <-
         case t of
             (Type.PlaceHolder t) ->
                 return $ PlaceHolder t
-            (Type.AliasN t1 t2 t3 t4) ->
-                error "TODO type aliases" -- (AliasN  t1 t2 ) <$> addEffectVars t3 <*> addEffectVars t4
             (Type.VarN t) ->
-                return $ Var (error "TODO var conversion")
+                 (error "TODO var conversion")
             (Type.AppN t1 t2 t3) ->
                 (App t1 t2) <$> (mapM addEffectVars  t3)
             (Type.FunN t1 t2) ->
@@ -255,11 +253,11 @@ addEffectVars t = do
     constraintVar <- UF.fresh ()
     return $ innerType :@ constraintVar
 
-freshTE :: IO TypeEffect
-freshTE = do
-    tipe <- Var <$> UF.fresh () --TODO what descriptor?
-    effect <- UF.fresh () --TODO what descriptor?
-    return $ tipe :@ effect
+-- freshTE :: IO TypeEffect
+-- freshTE = do
+--     tipe <- Var <$> UF.fresh () --TODO what descriptor?
+--     effect <- UF.fresh () --TODO what descriptor?
+--     return $ tipe :@ effect
 
 
 unifyTypes :: (ConstrainM m) => TypeEffect -> TypeEffect -> m ()
@@ -339,7 +337,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
                 --TODO need to alter path condition?
                 lamHelper [] t _GammaPath = do
                     --TODO need to unify types more?
-                    (bodyType, bodyConstr) <- self _GammaPath body 
+                    (bodyType, bodyConstr) <- self _GammaPath body
                     unifyTypes t  bodyType
                     return bodyConstr
                 lamHelper (argPat:argPats) t@( (Fun dom cod) :@ v3 ) (_Gamma, pathConstr) = do
@@ -421,12 +419,12 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
     constrainExpr_ (Can.Str s) typeEffect  _GammaPath = return $ (litString s) ==== typeEffect
     constrainExpr_ (Can.Int i) typeEffect  _GammaPath =  return $ (litInt i) ==== typeEffect
     constrainExpr_ (Can.Float expr) t _GammaPath = return CTrue
-    constrainExpr_ (Can.Negate expr) t _GammaPath = error "TODO negation"
-    constrainExpr_ (Can.VarKernel expr1 expr2) t _GammaPath = return CTrue
-    constrainExpr_ (Can.VarForeign expr1 expr2 expr3) t _GammaPath = return CTrue
-    constrainExpr_ (Can.VarDebug expr1 expr2 expr3) t _GammaPath = return CTrue
+    constrainExpr_ (Can.Negate expr) t _GammaPath = return (t ==== Top) --TODO something smart for negation
+    constrainExpr_ (Can.VarKernel expr1 expr2) t _GammaPath = return (t ==== Top)
+    constrainExpr_ (Can.VarForeign expr1 expr2 expr3) t _GammaPath = return (t ==== Top)
+    constrainExpr_ (Can.VarDebug expr1 expr2 expr3) t _GammaPath = return (t ==== Top)
     constrainExpr_ Can.Unit (_:@v) _GammaPath = return $ litUnit ==== v
-    constrainExpr_ (Can.Shader expr1 expr2 expr3) t _GammaPath = return CTrue
+    constrainExpr_ (Can.Shader expr1 expr2 expr3) t _GammaPath = return (t ==== Top )
     constrainExpr_ _ _ _ = error $ "Impossible type-expr combo "
 
 

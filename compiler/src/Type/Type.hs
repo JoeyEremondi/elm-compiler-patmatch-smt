@@ -66,6 +66,7 @@ globalVarMap :: IORef VarMap
 globalVarMap = (unsafePerformIO $ newIORef Map.empty)
 
 --Print the type for each expression in our hacked map
+printAllTypes :: IO [()]
 printAllTypes = do
   theTypes <- readIORef globalTypeMap
   forM (Map.toList theTypes) $ \(region,tipe) ->
@@ -73,6 +74,7 @@ printAllTypes = do
 
 --Given the list of type-variables for each expression
 --Get the associated types
+computeAllTypes :: IO ()
 computeAllTypes = do
   varMap <- readIORef globalVarMap
   computed <- forM  varMap toCanType
@@ -376,7 +378,7 @@ toAnnotation variable =
 toCanType :: Variable -> IO Can.Type
 toCanType variable =
         do  userNames <- getVarNames variable Map.empty
-            (tipe, NameState freeVars _ _ _ _ _) <-
+            (tipe, NameState _ _ _ _ _ _) <-
               State.runStateT (variableToCanType variable) (makeNameState userNames)
             return tipe
 
