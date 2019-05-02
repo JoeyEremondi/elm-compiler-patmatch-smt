@@ -27,6 +27,7 @@ import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 import qualified Type.Constrain.Module as Type
 import qualified Type.Solve as Type
+import Type.PatternMatch (patternMatchAnalysis)
 import Type.Type (printAllTypes)
 
 import System.IO.Unsafe (unsafePerformIO)
@@ -66,8 +67,11 @@ compile flag pkg importDict interfaces source =
       annotations <-
         runTypeInference localizer canonical
 
-      () <-
-        exhaustivenessCheck canonical
+      --Joey Eremondi
+      --Disabled in place of Pattern Match Analysis
+      -- () <-
+      --   exhaustivenessCheck canonical
+      () <- patternMatchAnalysis canonical
 
       graph <- Result.mapError (Error.Main localizer) $
         Optimize.optimize annotations canonical

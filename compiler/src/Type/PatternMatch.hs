@@ -7,7 +7,7 @@
   
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternSynonyms #-}
-module Type.PatternMatch where
+module Type.PatternMatch (patternMatchAnalysis) where
 
 import Control.Monad.State.Strict (StateT, liftIO)
 import qualified Control.Monad.State.Strict as State
@@ -41,6 +41,8 @@ import Data.Monoid
 
 import qualified Data.List as List
 
+import qualified Reporting.Result as Result
+
 type Variable = UF.Point ()
 
 data TypeEffect_ typeEffect =
@@ -50,7 +52,7 @@ data TypeEffect_ typeEffect =
     | App ModuleName.Canonical N.Name [typeEffect]
     | Fun typeEffect typeEffect
     | EmptyRecord
-    | Record (Map.Map N.Name typeEffect) typeEffect
+    | Record (Map.Map N.Name typeEffect) 
     | Unit
     | Tuple typeEffect typeEffect (Maybe typeEffect)
     deriving (Functor, Traversable, Foldable)
@@ -228,30 +230,47 @@ c1 /\ c2 =  CAnd [c1, c2]
 
 c1 \/ c2 = COr [c1, c2]
 
-addEffectVars :: Type.Type -> IO TypeEffect
-addEffectVars (Type.AliasN t1 t2 t3 actualType) = addEffectVars actualType
+addEffectVars :: Can.Type -> IO TypeEffect
+addEffectVars (Can.TAlias t1 t2 t3 actualType) = case actualType of
+    Can.Holey t -> addEffectVars t
+    Can.Filled t -> addEffectVars t
 addEffectVars t = do
-    innerType <-
-        case t of
-            (Type.PlaceHolder t) ->
-                return $ PlaceHolder t
-            (Type.VarN t) ->
-                 (error "TODO var conversion")
-            (Type.AppN t1 t2 t3) ->
-                (App t1 t2) <$> (mapM addEffectVars  t3)
-            (Type.FunN t1 t2) ->
-                Fun <$> addEffectVars t1 <*> addEffectVars t2
-            Type.EmptyRecordN -> return EmptyRecord
-            (Type.RecordN t1 t2) ->
-                Record <$> (mapM addEffectVars t1) <*> addEffectVars t2
-            Type.UnitN -> return Unit
-            (Type.TupleN t1 t2 t3) -> do
-                mt3 <- case t3 of
-                    Nothing -> return Nothing
-                    Just t -> Just <$> addEffectVars t
-                Tuple <$> addEffectVars t1 <*> addEffectVars t2 <*> (return mt3)
+    innerType <- case t of
+        (Can.TLambda t1 t2) -> Fun <$> addEffectVars t1 <*> addEffectVars t2
+        (Can.TVar t) -> (error "TODO var conversion")
+        (Can.TType t1 t2 t3) -> (App t1 t2) <$> (mapM addEffectVars  t3)
+        (Can.TRecord t1 t2) ->
+            Record <$> (mapM (\ (Can.FieldType _ t) -> addEffectVars t) t1) 
+        Can.TUnit -> return $ Unit 
+        (Can.TTuple t1 t2 t3) -> do
+            mt3 <- case t3 of
+                Nothing -> return Nothing
+                Just t -> Just <$> addEffectVars t
+            Tuple <$> addEffectVars t1 <*> addEffectVars t2 <*> (return mt3)
     constraintVar <- UF.fresh ()
     return $ innerType :@ constraintVar
+-- addEffectVars (Can.Alias t1 t2 t3 actualType) = addEffectVars actualType
+-- addEffectVars t = do
+--     innerType <-
+--         case t of
+--             (Type.PlaceHolder t) ->
+--                 return $ PlaceHolder t
+--             (Type.VarN t) ->
+--                  
+--             (Type.AppN t1 t2 t3) ->
+--                 (App t1 t2) <$> (mapM addEffectVars  t3)
+--             (Type.FunN t1 t2) ->
+--                 Fun <$> addEffectVars t1 <*> addEffectVars t2
+--             Type.EmptyRecordN -> return EmptyRecord
+--             (Type.RecordN t1 t2) ->
+--                 Record <$> (mapM addEffectVars t1) <*> addEffectVars t2
+--             Type.UnitN -> return Unit
+--             (Type.TupleN t1 t2 t3) -> do
+--                 mt3 <- case t3 of
+--                     Nothing -> return Nothing
+--                     Just t -> Just <$> addEffectVars t
+--                 Tuple <$> addEffectVars t1 <*> addEffectVars t2 <*> (return mt3)
+--     
 
 -- freshTE :: IO TypeEffect
 -- freshTE = do
@@ -545,3 +564,33 @@ litInt i = case i of
 litNat n = case n of
     0 -> Ctor ctorZero []
     i | i > 0 -> Ctor ctorSucc [litNat (i-1)]
+
+constrainRecursiveDefs :: Map.Map R.Region TypeEffect -> Gamma -> [Can.Def] -> IO Gamma
+constrainRecursiveDefs tyMap _Gamma defs = do
+    defTypes <- forM defs $ \ def -> 
+        case def of
+            (Can.Def (A.At region name) def2 def3) -> return (name, monoschemeVar $ tyMap Map.! region) 
+            (Can.TypedDef (A.At region name) def2 def3 def4 def5) -> return (name, monoschemeVar $ tyMap Map.! region)
+                
+    let exprs = 
+            map (\ def -> case def of
+                Can.Def (A.At region _) _ body -> (A.At region body)
+                Can.TypedDef (A.At region _) _ _ body _ -> (A.At region body))
+    let _Gamma = Map.fromList defTypes
+    constrs <- forM defs $ constrainDef tyMap (_Gamma, CTrue) 
+    return _Gamma 
+
+patternMatchAnalysis :: Can.Module -> Result.Result i w e ()
+patternMatchAnalysis modul = return $ unsafePerformIO $ do
+    tyMapRaw <- readIORef Type.globalTypeMap
+    tyMap <- mapM addEffectVars tyMapRaw 
+    helper tyMap (Can._decls modul) Map.empty
+  where 
+    helper tyMap (Can.Declare def decls)  _Gamma = do
+        envExt <- constrainDef tyMap (_Gamma, CTrue) def
+        helper tyMap decls (Map.union envExt _Gamma)
+    helper tyMap (Can.DeclareRec defs decls)  _Gamma = do
+        newGamma <- constrainRecursiveDefs tyMap _Gamma defs
+        helper tyMap decls newGamma 
+    helper theTyMap Can.SaveTheEnvironment  _Gamma = 
+        return ()    
