@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -55,7 +56,7 @@ data TypeEffect =  TypeEffect_ :@ Variable
 data LitPattern = 
     SetVar Variable
     | Ctor String [LitPattern] 
-    | Proj Int LitPattern 
+    | Proj String Int LitPattern 
     | Top
     | Bottom 
     | Intersect LitPattern LitPattern
@@ -68,7 +69,8 @@ data Constraint =
     | CSubset LitPattern LitPattern
     | CTrue
 
-newtype Safety = Safety Constraint
+newtype Safety = Safety [(Constraint, R.Region)]
+    deriving (Monoid, Semigroup) 
 
 p1 ==== p2 = 
     let l1 = toLit p1
@@ -107,9 +109,12 @@ instance Monoid Constraint where
     mempty = CTrue
 
 data EffectScheme =
-    Forall [Variable] TypeEffect Constraint
+    Forall [Variable] TypeEffect Constraint Safety
 
 type Gamma = Map.Map N.Name EffectScheme
+
+monoscheme tipe@(_ :@ var) lit =
+    Forall [] tipe (var ==== lit) (Safety [])
 
 freeConstraintVars :: TypeEffect -> [Variable]
 freeConstraintVars ty = [] --TODO implement
@@ -162,47 +167,58 @@ freshTE = do
     effect <- UF.fresh () --TODO what descriptor?
     return $ tipe :@ effect
 
+
 unifyTypes :: TypeEffect -> TypeEffect -> IO ()
 unifyTypes (_ :@ v1) (_ :@ v2) =
     UF.union v1 v2 ()
     --TODO do we need to unify sub-vars?
 
 
-type ConstrainM m = (MonadIO m, MonadWriter [Safety] m ) 
+type ConstrainM m = (MonadIO m, MonadWriter Safety m ) 
 
-constrainExpr :: (ConstrainM m) => Map.Map R.Region TypeEffect -> Gamma -> Can.Expr ->   m (TypeEffect,  Constraint) 
-constrainExpr tyMap _Gamma (A.At region expr)  =  
+tellSafety x = tell $ Safety [x]
+
+--Given a type and an  effect-variable for each expression,
+-- a mapping (Gamma) from free variables to effect schemes,
+--A "path constraint" of truths that must hold for us to reach this point in the program,
+-- and an expression,
+--Traverse that expression and generate the constraints that, when solved,
+-- give the possible patterns for each effect variable.
+-- Emits "safety constraints" using the Writer monad
+constrainExpr :: (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Expr ->   m (TypeEffect,  Constraint) 
+constrainExpr tyMap _GammaPath (A.At region expr)  =  
     case Map.lookup region tyMap of
-        Just ty -> do
-            c <- constrainExpr_ expr ty _Gamma
+        Just ty -> do 
+            c <- constrainExpr_ expr ty _GammaPath
             return (ty, c)
         Nothing -> error "Region not in type map"
   where
-    self :: (ConstrainM m) => Gamma -> Can.Expr ->   m (TypeEffect,  Constraint) 
+    self :: (ConstrainM m) => (Gamma, Constraint) -> Can.Expr ->   m (TypeEffect,  Constraint) 
     self  = constrainExpr tyMap 
-    constrainExpr_ ::  (ConstrainM m) => Can.Expr_ -> TypeEffect -> Gamma -> m Constraint 
-    constrainExpr_ (Can.VarLocal name) t _Gamma = do
+    constrainExpr_ ::  (ConstrainM m) => Can.Expr_ -> TypeEffect -> (Gamma, Constraint) -> m Constraint 
+    constrainExpr_ (Can.VarLocal name) t (_Gamma, _) = do
         let (tipe, constr) = instantiate (_Gamma Map.! name)
         liftIO $ unifyTypes t tipe
         return CTrue
-    constrainExpr_ (Can.VarTopLevel expr1 expr2) t _Gamma = error "TODO get type from imports"
-    constrainExpr_ (Can.VarCtor expr1 expr2 expr3 expr4 expr5) t _Gamma = _ 
+    constrainExpr_ (Can.VarTopLevel expr1 expr2) t _GammaPath = error "TODO get type from imports"
+    constrainExpr_ (Can.VarCtor expr1 expr2 expr3 expr4 expr5) t _GammaPath = _ 
     --TODO: for ctor, get its (simple) type scheme and instantiate
     --Turn into TypeEffect
-    constrainExpr_ (Can.VarOperator expr1 expr2 expr3 expr4) t _Gamma = return CTrue --TODO built-in types for operators 
-    constrainExpr_ (Can.Binop expr1 expr2 expr3 expr4 expr5 expr6) t _Gamma = return CTrue --TODO built-in types for operators  
-    constrainExpr_ (Can.Case discr branches) inputPatterns _Gamma = do
+    constrainExpr_ (Can.VarOperator expr1 expr2 expr3 expr4) t _GammaPath = return CTrue --TODO built-in types for operators 
+    constrainExpr_ (Can.Binop expr1 expr2 expr3 expr4 expr5 expr6) t _GammaPath = return CTrue --TODO built-in types for operators  
+    constrainExpr_ (Can.Case discr branches) inputPatterns (_Gamma, pathConstr) = do
         let litBranches = map (\ (Can.CaseBranch pat rhs) -> (canPatToLit pat, rhs) ) branches
-        let coveredConstr =  inputPatterns << union (map fst litBranches)
+        --Emit a safety constraint: must cover all possible inputs by our branch patterns
+        tellSafety (pathConstr ==> (inputPatterns << union (map fst litBranches)), region)
         branchConstr <- CAnd <$> 
             (forM litBranches $ 
                 \(lit, rhs) -> do
                     return _ ) 
-        return $ coveredConstr /\ branchConstr --TODO safety constraint separately?
-    constrainExpr_ (Can.Lambda expr1 expr2) ( (Fun (t1 :@ e1) (t2 :@ v2)) :@ v3 ) _Gamma = _ 
-    constrainExpr_ (Can.Call fun args) retEffect _Gamma = do
-         (funTy, funConstr) <- self _Gamma fun 
-         (argTEs, argConstrs) <- unzip <$> mapM (self _Gamma) args  
+        return $  branchConstr --TODO safety constraint separately?
+    constrainExpr_ (Can.Lambda expr1 expr2) ( (Fun (t1 :@ e1) (t2 :@ v2)) :@ v3 ) _GammaPath = _ 
+    constrainExpr_ (Can.Call fun args) retEffect _GammaPath = do
+         (funTy, funConstr) <- self _GammaPath fun 
+         (argTEs, argConstrs) <- unzip <$> mapM (self _GammaPath) args  
          return $ argHelper funTy argTEs ( funConstr /\ CAnd argConstrs) 
             where
                 --Loop to compute the return type
@@ -211,40 +227,40 @@ constrainExpr tyMap _Gamma (A.At region expr)  =
                 argHelper funEffect [] accum = funEffect ==== retEffect  /\ accum
                 argHelper (Fun (tdom :@ edom) cod :@ efun) (targ :@ earg : rest) accum = 
                     argHelper cod rest (earg ==== edom /\ accum ) 
-    constrainExpr_ (Can.If expr1 expr2) t _Gamma = _ 
-    constrainExpr_ (Can.Let def inExpr)  t _Gamma = 
-        snd<$>constrainDef tyMap _Gamma def 
-    constrainExpr_ (Can.LetDestruct expr1 expr2 expr3) t _Gamma = _ 
-    constrainExpr_ (Can.Accessor expr) t _Gamma = error "TODO records" 
-    constrainExpr_ (Can.Access expr1 expr2) t _Gamma = error "TODO records"
-    constrainExpr_ (Can.Update expr1 expr2 expr3) t _Gamma = error "TODO records"
-    constrainExpr_ (Can.Record expr) t _Gamma = error "TODO records"
-    constrainExpr_ (Can.Tuple expr1 expr2 Nothing) (_ :@ vTuple) _Gamma = do
-        (elemEffect1, constr1) <- self _Gamma expr1
-        (elemEffect2, constr2) <- self _Gamma expr2
+    constrainExpr_ (Can.If expr1 expr2) t _GammaPath = _ 
+    constrainExpr_ (Can.Let def inExpr)  t _GammaPath = 
+        snd<$>constrainDef tyMap _GammaPath def 
+    constrainExpr_ (Can.LetDestruct expr1 expr2 expr3) t _GammaPath = _ 
+    constrainExpr_ (Can.Accessor expr) t _GammaPath = error "TODO records" 
+    constrainExpr_ (Can.Access expr1 expr2) t _GammaPath = error "TODO records"
+    constrainExpr_ (Can.Update expr1 expr2 expr3) t _GammaPath = error "TODO records"
+    constrainExpr_ (Can.Record expr) t _GammaPath = error "TODO records"
+    constrainExpr_ (Can.Tuple expr1 expr2 Nothing) (_ :@ vTuple) _GammaPath = do
+        (elemEffect1, constr1) <- self _GammaPath expr1
+        (elemEffect2, constr2) <- self _GammaPath expr2
         return $ CAnd [constr1, constr2, (litPair elemEffect1 elemEffect2) ==== vTuple]
-    constrainExpr_ (Can.Tuple expr1 expr2 (Just expr3)) (_ :@ vTuple) _Gamma = do
-        (elemEffect1, constr1) <- self _Gamma expr1
-        (elemEffect2, constr2) <- self _Gamma expr2
-        (elemEffect3, constr3) <- self _Gamma expr3
+    constrainExpr_ (Can.Tuple expr1 expr2 (Just expr3)) (_ :@ vTuple) _GammaPath = do
+        (elemEffect1, constr1) <- self _GammaPath expr1
+        (elemEffect2, constr2) <- self _GammaPath expr2
+        (elemEffect3, constr3) <- self _GammaPath expr3
         return $ CAnd [constr1, constr2, constr3, (litTriple elemEffect1 elemEffect2 elemEffect3) ==== vTuple]  
-    constrainExpr_ (Can.List expr) t _Gamma = do
-        (typeEffects, constrs) <- unzip <$> forM expr (self _Gamma)
+    constrainExpr_ (Can.List expr) t _GammaPath = do
+        (typeEffects, constrs) <- unzip <$> forM expr (self _GammaPath)
         return $ (CAnd constrs) /\ (t ==== litList typeEffects )
-    constrainExpr_ (Can.Chr c) typeEffect _Gamma = return $ (litChar c) ====  typeEffect
-    constrainExpr_ (Can.Str s) typeEffect  _Gamma = return $ (litString s) ==== typeEffect
-    constrainExpr_ (Can.Int i) typeEffect  _Gamma =  return $ (litInt i) ==== typeEffect
-    constrainExpr_ (Can.Float expr) t _Gamma = return CTrue
-    constrainExpr_ (Can.Negate expr) t _Gamma = error "TODO negation"
-    constrainExpr_ (Can.VarKernel expr1 expr2) t _Gamma = return CTrue 
-    constrainExpr_ (Can.VarForeign expr1 expr2 expr3) t _Gamma = return CTrue
-    constrainExpr_ (Can.VarDebug expr1 expr2 expr3) t _Gamma = return CTrue
-    constrainExpr_ Can.Unit (_:@v) _Gamma = return $ litUnit ==== v 
-    constrainExpr_ (Can.Shader expr1 expr2 expr3) t _Gamma = return CTrue     
+    constrainExpr_ (Can.Chr c) typeEffect _GammaPath = return $ (litChar c) ====  typeEffect
+    constrainExpr_ (Can.Str s) typeEffect  _GammaPath = return $ (litString s) ==== typeEffect
+    constrainExpr_ (Can.Int i) typeEffect  _GammaPath =  return $ (litInt i) ==== typeEffect
+    constrainExpr_ (Can.Float expr) t _GammaPath = return CTrue
+    constrainExpr_ (Can.Negate expr) t _GammaPath = error "TODO negation"
+    constrainExpr_ (Can.VarKernel expr1 expr2) t _GammaPath = return CTrue 
+    constrainExpr_ (Can.VarForeign expr1 expr2 expr3) t _GammaPath = return CTrue
+    constrainExpr_ (Can.VarDebug expr1 expr2 expr3) t _GammaPath = return CTrue
+    constrainExpr_ Can.Unit (_:@v) _GammaPath = return $ litUnit ==== v 
+    constrainExpr_ (Can.Shader expr1 expr2 expr3) t _GammaPath = return CTrue     
     constrainExpr_ _ _ _ = error $ "Impossible type-expr combo "
 
-constrainDef ::  (ConstrainM m) => Map.Map R.Region TypeEffect -> Gamma -> Can.Def ->   m (TypeEffect,  Constraint)
-constrainDef tipes _Gamma def = _
+constrainDef ::  (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Def ->   m (TypeEffect,  Constraint)
+constrainDef tipes _GammaPath def = _
 
 
 --Given a variable V for a pattern expression, and the LHS of a case branch,
@@ -265,25 +281,66 @@ canPatToLit  (A.At info pat) =
         (Can.PChr c) -> litChar c
         (Can.PStr s) -> litString s
         (Can.PInt i) -> litInt i
-        (Can.PCtor { Can._p_home = p__p_home, Can._p_type = p__p_type, Can._p_union = p__p_union, Can._p_name = ctorName, Can._p_index = p__p_index, Can._p_args = ctorArgs }) -> Ctor (N.toString ctorName) (map (canPatToLit . Can._arg) ctorArgs)  
+        (Can.PCtor { Can._p_name = ctorName, Can._p_args = ctorArgs }) -> Ctor (N.toString ctorName) (map (canPatToLit . Can._arg) ctorArgs)  
 
-litUnit = Ctor "--Unit" []
-litPair l1 l2 = Ctor "--Pair" [(toLit l1), (toLit l2)]
-litTriple l1 l2 l3 = Ctor "--Triple" (map toLit [l1, l2, l3])
+envAfterMatch :: Map.Map R.Region TypeEffect ->  LitPattern  -> Can.Pattern -> Gamma  
+envAfterMatch typesForRegions matchedPat (A.At region pat)  =
+    let 
+        ourType = typesForRegions Map.! region
+        ctorProjectionEnvs  topPat nameString ctorArgPats = 
+            let
+                subPats = map ((flip $ Proj nameString) topPat) [1.. (length ctorArgPats)] 
+                subDicts = zipWith ((envAfterMatch typesForRegions) ) subPats ctorArgPats
+             in Map.unions subDicts
+    in case pat of
+        Can.PVar x -> Map.insert x (monoscheme ourType matchedPat) _Gamma
+        (Can.PCtor { Can._p_name = ctorName, Can._p_args = ctorArgs }) -> 
+            ctorProjectionEnvs matchedPat (N.toString ctorName) $ map Can._arg ctorArgs
+        (Can.PTuple p1 p2 (Just p3)) -> ctorProjectionEnvs matchedPat ctorTriple [p1, p2, p3]
+        (Can.PTuple p1 p2 Nothing) -> ctorProjectionEnvs matchedPat ctorPair [p1, p2]
+        (Can.PList []) -> Map.empty --Nothing to add to env for Null
+        --For lists, we get split into head and tail and handle recursively
+        (Can.PList (p1 : pList)) -> ctorProjectionEnvs matchedPat ctorCons [p1, A.At region (Can.PList pList)]
+        (Can.PCons p1 p2) -> ctorProjectionEnvs matchedPat ctorCons [p1, p2]
+        _ -> _Gamma
+
+                    
+
+--Helpers for generating literal patterns from builtin data types
+ctorUnit = "--Unit"
+litUnit = Ctor ctorUnit []
+
+ctorPair = "--Pair"
+litPair l1 l2 = Ctor ctorPair  [(toLit l1), (toLit l2)]
+ctorTriple = "--Triple"
+litTriple l1 l2 l3 = Ctor ctorTriple  (map toLit [l1, l2, l3])
+
 litList l = case l of
     [] -> litNull
     (h : t) -> litCons h (litList t)
-litNull = Ctor "--Null" []
-litCons h t = Ctor "--Cons" [toLit h, toLit t]
-litTrue = Ctor "--True" []
-litFalse = Ctor "--False" []
-litChar c = Ctor ("--CHAR_" ++ unpack c) []
-litString s = Ctor ("--STRING" ++ show s) []
+ctorNull = "--Null"
+ctorCons = "--Cons"
+litNull = Ctor ctorNull []
+litCons h t = Ctor ctorCons [toLit h, toLit t]
+
+ctorTrue = "--True"
+litTrue = Ctor ctorTrue []
+ctorFalse = "--False"
+litFalse = Ctor ctorFalse []
+ctorChar c = "--CHAR_" ++ unpack c
+litChar c = Ctor (ctorChar c) []
+ctorString s = "--STRING" ++ show s
+litString s = Ctor (ctorString s) []
+
+ctorZero = "--ZERO"
+ctorPos = "--POSITIVE"
+ctorNeg = "--NEGATIVE"
+ctorSucc = "--SUCC"
 litInt i = case i of
-    0 -> Ctor "--ZERO" []
-    _ | i < 0 -> Ctor "--NEGATIVE" [litNat (-i)]
-    _ | i > 0 -> Ctor "--POSITIVE" [litNat i]
+    0 -> Ctor ctorZero []
+    _ | i < 0 -> Ctor ctorPos [litNat (-i)]
+    _ | i > 0 -> Ctor ctorNeg [litNat i]
 
 litNat n = case n of
-    0 -> Ctor "--ZERO" []
-    i | i > 0 -> Ctor "--SUCC" [litNat (i-1)]
+    0 -> Ctor ctorZero []
+    i | i > 0 -> Ctor ctorSucc [litNat (i-1)]
