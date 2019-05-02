@@ -14,6 +14,7 @@ import qualified Data.Map.Strict as Map
 import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
+import           Data.IORef
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as E
@@ -41,7 +42,14 @@ type Header = Map.Map N.Name (A.Located Type)
 
 
 add :: Can.Pattern -> E.PExpected Type -> State -> IO State
-add (A.At region pattern) expectation state =
+add (A.At region pattern) expectation state = do
+  let expectedType = 
+        case expectation of
+          (E.PNoExpectation tipe) -> E.NoExpectation tipe
+          (E.PFromContext _ _ tipe3) -> E.NoExpectation tipe3
+  freshVar <- mkFlexVar
+  modifyIORef T.globalVarMap (Map.insert region freshVar)
+  let labelConstr = CEqual region (error "TODO category for equal") (T.VarN freshVar) expectedType
   case pattern of
     Can.PAnything ->
       return state
