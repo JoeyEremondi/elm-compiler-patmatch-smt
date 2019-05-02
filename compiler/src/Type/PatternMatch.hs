@@ -52,41 +52,65 @@ data TypeEffect_ typeEffect =
     deriving (Functor, Traversable, Foldable)
 
 
+newtype Fix f = Fix {unfix :: f (Fix f)}
 
 infix 9 :@
 data TypeEffect =  (TypeEffect_ TypeEffect) :@ Variable
 
-data LitPattern =
-    SetVar Variable
-    | Ctor String [LitPattern]
-    | Proj String Int LitPattern
-    | Top
-    | Bottom
-    | Intersect LitPattern LitPattern
-    | Union LitPattern LitPattern
+data LitPattern_ self =
+    SetVar_ Variable
+    | Ctor_ String [self]
+    | Proj_ String Int self
+    | Top_
+    | Bottom_
+    | Intersect_ self self
+    | Union_ self self
+    deriving (Functor, Traversable, Foldable)
 
-data Constraint =
-    CAnd [Constraint]
-    | COr [Constraint]
-    | CImplies Constraint Constraint
-    | CSubset LitPattern LitPattern
-    | CTrue
-    | CNot Constraint
+pattern SetVar v = Fix ( SetVar_ v)
+pattern Ctor s l = Fix (Ctor_ s l)
+pattern Proj s i p = Fix (Proj_ s i p)
+pattern Top = Fix Top_
+pattern Bottom = Fix Bottom_
+pattern Union x y = Fix (Union_ x y) 
+
+data Constraint_ pat self =
+    CAnd_ [self]
+    | COr_ [self]
+    | CImplies_ self self
+    | CSubset_ pat pat
+    | CTrue_
+    | CNot_ self
+    deriving (Functor, Traversable, Foldable)
+
+pattern CAnd l = Fix (CAnd_ l)
+pattern COr l = Fix (COr_ l)
+pattern CImplies x y = Fix (CImplies_ x y)
+pattern CSubset p1 p2 = Fix (CSubset_ p1 p2)
+pattern CTrue = Fix CTrue_
+pattern CNot x = Fix (CNot_ x)
+
+type LitPattern = Fix LitPattern_
+type Constraint = Fix (Constraint_ LitPattern)
 
 newtype Safety = Safety [(Constraint, R.Region)]
     deriving (Monoid, Semigroup)
 
+(====) :: (Subsetable a, Subsetable b) => a -> b -> Constraint
 p1 ==== p2 =
     let l1 = toLit p1
         l2 = toLit p2
     in
-    CSubset l1 l2 /\ CSubset l2 l1
+    (l1 << l2) /\ (l2 << l1)
 
-union :: (Subsetable a) => [a] -> LitPattern
-union = foldr (\ a b -> toLit a `Union` b) Bottom
+unions :: (Subsetable a) => [a] -> LitPattern
+unions = foldr (\ a b ->  (toLit a) `union` b) Bottom
 
-intersect :: (Subsetable a) => [a] -> LitPattern
-intersect = foldr (\ a b -> toLit a `Intersect` b) Bottom
+intersects :: (Subsetable a) => [a] -> LitPattern
+intersects = foldr (\ a b ->  (toLit a) `intersect` b) Bottom
+
+union a b = unions [toLit a, toLit b]
+intersect a b = intersects [toLit a, toLit b]
 
 class Subsetable a where
     toLit :: a -> LitPattern
@@ -99,6 +123,9 @@ instance Subsetable Variable where
 
 instance Subsetable TypeEffect where
     toLit (_ :@ v) = toLit v
+
+instance Subsetable (LitPattern_ LitPattern) where
+    toLit = Fix
 
 (<<) :: (Subsetable a, Subsetable b ) => a -> b -> Constraint
 v1 << v2 = CSubset (toLit v1) (toLit v2)
@@ -113,7 +140,7 @@ instance Semigroup Constraint where
     c1 <> c2 = CAnd [c1, c2]
 
 instance Monoid Constraint where
-    mempty = CTrue
+    mempty =  CTrue
     mappend = (Data.Semigroup.<>)
 
 data EffectScheme =
@@ -121,10 +148,13 @@ data EffectScheme =
 
 type Gamma = Map.Map N.Name EffectScheme
 
+monoscheme :: TypeEffect -> LitPattern -> EffectScheme
 monoscheme tipe@(_ :@ var) lit =
     Forall [] tipe (var ==== lit)
+
 monoschemeVar :: TypeEffect -> EffectScheme
 monoschemeVar tipe = Forall [] tipe CTrue
+
 
 
 freeConstraintVars :: TypeEffect -> [Variable]
@@ -133,8 +163,25 @@ freeConstraintVars ty = [] --TODO implement
 traverseTE :: (TypeEffect -> TypeEffect) -> TypeEffect -> TypeEffect
 traverseTE f (t :@ e) = f ((f <$> t) :@ e)
 
-substs :: (Variable -> Variable) -> TypeEffect -> TypeEffect
-substs sub = traverseTE (\ (t :@ e) -> t :@ sub e)
+oneTypeSubst :: (Variable -> Variable) -> TypeEffect -> TypeEffect
+oneTypeSubst sub (t :@ e) = t :@ (sub e)
+
+oneConstrSubst :: (Variable -> Variable) -> Constraint -> Constraint
+oneConstrSubst sub (CSubset p1 p2) = CSubset (litSubsts sub p1) (litSubsts sub p2)  
+oneConstrSubst sub c = c
+
+oneLitSubst :: (Variable -> Variable) -> LitPattern -> LitPattern
+oneLitSubst sub (SetVar v) = SetVar $ sub v
+oneLitSub sub l = l
+
+typeSubst :: (Variable -> Variable) -> TypeEffect -> TypeEffect
+typeSubst sub (t :@ e) = oneTypeSubst sub ((oneTypeSubst sub <$> t) :@ e) 
+
+constrSubst :: (Variable -> Variable) -> Constraint -> Constraint
+constrSubst sub (Fix c) =  oneConstrSubst sub (Fix $ (oneConstrSubst sub <$> c)) 
+
+litSubsts :: (Variable -> Variable) -> LitPattern -> LitPattern
+litSubsts sub (Fix l) = oneLitSubst sub (Fix $ (oneLitSubst sub <$> l)) 
 
 instantiate :: EffectScheme -> (TypeEffect, Constraint)
 instantiate = error "TODO instantiate"
@@ -142,13 +189,15 @@ instantiate = error "TODO instantiate"
 generalize :: Gamma -> TypeEffect -> Constraint  -> EffectScheme
 generalize = error "TODO generalize"
 
-x ==> y = CImplies x y
+(==>) ::  Constraint -> Constraint -> Constraint 
+x ==> y =  CImplies x y
 
 --Smart constructor for AND
-CAnd c1 /\ CAnd c2 = CAnd (c1 ++ c2)
-c1 /\ CAnd c2 = CAnd (c1 : c2)
-CAnd c1 /\ c2 = CAnd (c2 : c1 )
-c1 /\ c2 = CAnd [c1, c2]
+(/\) :: Constraint -> Constraint -> Constraint
+(CAnd c1) /\  (CAnd c2) =   CAnd (c1 ++ c2)
+c1 /\  (CAnd c2) =  CAnd (c1 : c2)
+(CAnd c1) /\ c2 =  CAnd (c2 : c1 )
+c1 /\ c2 =  CAnd [c1, c2]
 
 c1 \/ c2 = COr [c1, c2]
 
@@ -239,12 +288,12 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
         --TODO negate previous branches
         let litBranches = map (\ (Can.CaseBranch pat rhs) -> (pat, canPatToLit pat, rhs) ) branches
         --Emit a safety constraint: must cover all possible inputs by our branch patterns
-        tellSafety pathConstr (inputPatterns << union (map (\(_,b,_) -> b) litBranches)) region
+        tellSafety pathConstr (inputPatterns << unions (map (\(_,b,_) -> b) litBranches)) region
         (patVars, branchConstrs) <- unzip <$>
             forM litBranches (
                 \(pat, lit, rhs) -> do
                     v <- liftIO $ UF.fresh ()
-                    let canBeInBranch = (intersect [toLit inputPatterns, lit]) </< Bottom
+                    let canBeInBranch = ( toLit inputPatterns `intersect` lit) </< Bottom
                     let newEnv = envAfterMatch tyMap (toLit inputPatterns) pat
                     let newPathConstr = canBeInBranch /\ pathConstr
                     (rhsTy, rhsConstrs) <- self (Map.union newEnv _Gamma, newPathConstr) rhs
@@ -252,7 +301,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
                         (canBeInBranch ==> (v ==== rhsTy))
                         /\ ((CNot canBeInBranch) ==> (v ==== Bottom))))
         --The result of the whole thing is the union of all the results of the branches
-        let resultConstr = resultType ==== (union patVars)
+        let resultConstr = resultType ==== (unions patVars)
         return (inputConstrs /\ resultConstr /\ CAnd branchConstrs)
     --Lambda base case: just typecheck the body if there are 0 args
 
@@ -262,7 +311,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
                 --TODO need to alter path condition?
                 lamHelper [] t _GammaPath = do
                     --TODO need to unify types more?
-                    (bodyType, bodyConstr) <- self _GammaPath body
+                    (bodyType, bodyConstr) <- self _GammaPath body 
                     unifyTypes t  bodyType
                     return bodyConstr
                 lamHelper (argPat:argPats) t@( (Fun dom cod) :@ v3 ) (_Gamma, pathConstr) = do
@@ -300,8 +349,8 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
                             ifCond
                             /\ thenCond
                             /\ ((litTrue << ifType ) ==> (retType ==== thenType) )
-                            /\ ((((litTrue `Intersect` (toLit ifType)) ==== Bottom)) ==> (retType ==== Bottom))))
-        return $ elseCond /\ (CAnd branchConds) /\ (t ==== union ((toLit elseType) : (map toLit branchTypes)))
+                            /\ ((((litTrue `intersect` (toLit ifType)) ==== Bottom)) ==> (retType ==== Bottom))))
+        return $ elseCond /\ (CAnd branchConds) /\ (t ==== unions ((toLit elseType) : (map toLit branchTypes)))
     constrainExpr_ (Can.Let def inExpr)  t _GammaPath@(_Gamma, pathConstr) = do
         --We don't generate any constraints when we constrain a definition
         --Because those constraints get wrapped up in the EffectScheme
