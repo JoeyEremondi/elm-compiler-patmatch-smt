@@ -1,3 +1,4 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -7,7 +8,10 @@
   
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternSynonyms #-}
+
 module Type.PatternMatch (patternMatchAnalysis) where
+
+import qualified Reporting.Error
 
 import Control.Monad.State.Strict (StateT, liftIO)
 import qualified Control.Monad.State.Strict as State
@@ -15,6 +19,11 @@ import           Control.Monad
 import Data.Foldable (foldrM, toList)
 import qualified Data.Map.Strict as Map
 import Data.Word (Word32)
+
+import qualified Nitpick.PatternMatches as PatError
+
+import Control.Monad.Fail
+import Control.Monad.Except (ExceptT, MonadError, throwError, runExceptT)
 
 import qualified Data.Maybe as Maybe
 
@@ -288,14 +297,25 @@ unifyTypes (_ :@ v1) (_ :@ v2) =
     --TODO do we need to unify sub-vars?
 
 
-type ConstrainM m = (MonadIO m, MonadWriter Safety m )
+type ConstrainM m = (MonadIO m, MonadWriter Safety m, MonadError PatError.Error m )
+
+unpackEither :: (ConstrainM m ) => m (Either PatError.Error b) -> m b
+unpackEither ec = do
+    e <- ec
+    case e of
+        Left s -> throwError s
+        Right b -> return b 
 
 newtype ConstrainMonad a = CM {
-    runCM :: WriterT Safety IO a
-} deriving (Functor, Applicative, Monad, MonadIO, MonadWriter Safety)
+    runCM :: ExceptT PatError.Error  (WriterT Safety IO) a
+} deriving (Functor, Applicative, Monad, MonadIO, MonadWriter Safety, MonadError PatError.Error)
 
-runCMIO :: ConstrainMonad a -> IO (a, Safety)
-runCMIO c = runWriterT (runCM c)
+runCMIO :: ConstrainMonad a -> IO (Either PatError.Error (a, Safety))
+runCMIO c = do
+    (maybeResult, safety) <- runWriterT $ runExceptT $ runCM c
+    return $ do
+        result <- maybeResult
+        return (result, safety)
 
 tellSafety pathConstr x r = tell $ Safety [(pathConstr ==> x, r)]
 
@@ -403,9 +423,9 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
         --We don't generate any constraints when we constrain a definition
         --Because those constraints get wrapped up in the EffectScheme
         --And are instantiated at each use of x
-        envExt <- liftIO $ constrainDef tyMap _GammaPath def
+        envExt <- constrainDef tyMap _GammaPath def
         (bodyType, bodyConstr) <- self (Map.union envExt _Gamma, pathConstr) inExpr
-        unifyTypes bodyType t
+        unifyTypes bodyType t 
         return bodyConstr
     constrainExpr_ (Can.LetDestruct pat letExp inExp) t _GammaPath@(_Gamma, pathConstr) = do
         --TODO need to generalize?
@@ -453,18 +473,22 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
 --Takes place in the IO monad, not our ConstrainM
 --Because we want to generate a separate set of safety constraints for this definition
 --TODO check all this
-constrainDef ::  Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Def ->   IO Gamma
+constrainDef :: (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Def ->   m Gamma
 constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
     (x, defType, defConstr) <- case def of
         --Get the type of the body, and add it into the environment as a monoscheme
         --To start our argument-processing loop
         (Can.Def (A.At wholeRegion x) funArgs body) -> do
             let wholeType = (tyMap Map.! wholeRegion)
-            (exprConstr, safety) <- runCMIO $ constrainDef_  funArgs body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
+            --We run in a separate instance, so we get different safety constraints
+            --TODO need this?
+            (exprConstr, safety) <- unpackEither $ liftIO $ runCMIO $ constrainDef_  funArgs body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
             return (x, wholeType, exprConstr)
         (Can.TypedDef (A.At wholeRegion x) _ patTypes body _) -> do
             let wholeType = (tyMap Map.! wholeRegion)
-            (exprConstr, safety) <- runCMIO $ constrainDef_  (map fst patTypes) body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
+            --We run in a separate instance, so we get different safety constraints
+            --TODO need this?
+            (exprConstr, safety)  <- unpackEither $ liftIO $ runCMIO $ constrainDef_  (map fst patTypes) body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
             return (x, wholeType, exprConstr)
     --Now that we have types and constraints for the body, we generalize them over all free variables
     --not  occurring in Gamma, and return an environment mapping the def name to this scheme
@@ -569,7 +593,7 @@ litNat n = case n of
     0 -> Ctor ctorZero []
     i | i > 0 -> Ctor ctorSucc [litNat (i-1)]
 
-constrainRecursiveDefs :: Map.Map R.Region TypeEffect -> Gamma -> [Can.Def] -> IO Gamma
+constrainRecursiveDefs :: (ConstrainM m) => Map.Map R.Region TypeEffect -> Gamma -> [Can.Def] -> m Gamma
 constrainRecursiveDefs tyMap _Gamma defs = do
     defTypes <- forM defs $ \ def -> 
         case def of
@@ -584,12 +608,18 @@ constrainRecursiveDefs tyMap _Gamma defs = do
     constrs <- forM defs $ constrainDef tyMap (_Gamma, CTrue) 
     return _Gamma 
 
-patternMatchAnalysis :: Can.Module -> Result.Result i w e ()
-patternMatchAnalysis modul = return $ unsafePerformIO $ do
-    tyMapRaw <- readIORef Type.globalTypeMap
-    tyMap <- mapM addEffectVars tyMapRaw 
-    helper tyMap (Can._decls modul) Map.empty
-  where 
+patternMatchAnalysis :: Can.Module -> Result.Result i w Reporting.Error.Error ()
+patternMatchAnalysis modul = do
+    let 
+        eitherResult =  unsafePerformIO $ runCMIO $ do
+            tyMapRaw <- liftIO $ readIORef Type.globalTypeMap
+            tyMap <- liftIO $ mapM addEffectVars tyMapRaw 
+            helper tyMap (Can._decls modul) Map.empty
+    case eitherResult of
+        Left patError -> Result.throw $ Reporting.Error.Pattern [patError]
+        Right _ -> return () 
+  where
+    -- helper ::   _ -> _ -> _ -> ConstrainMonad   _ 
     helper tyMap (Can.Declare def decls)  _Gamma = do
         envExt <- constrainDef tyMap (_Gamma, CTrue) def
         helper tyMap decls (Map.union envExt _Gamma)
