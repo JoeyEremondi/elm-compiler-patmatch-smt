@@ -16,8 +16,7 @@ With Stack:
 5. `stack build`
 
 
-## InstallDu hast schon die ein oder andere Zeile Code geschrieben und kannst mit git umgehen? GNU/Linux-Systeme sind dir nicht fremd?
-Du hast eigentlich keine Lust mehr auf Java mitsamt den `NullPointerExceptions` und `InvalidArgumentExceptions`?
+## Install
 
 
 The built Elm executable will reside inside `.stack-work/dist/<your-arch>/<cabal-version>/build/elm/elm`.
