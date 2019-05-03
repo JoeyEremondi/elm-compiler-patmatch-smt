@@ -176,16 +176,16 @@ instance Monoid Constraint where
     mappend = (Data.Semigroup.<>)
 
 data EffectScheme =
-    Forall [Variable] TypeEffect Constraint
+    Forall [Variable] TypeEffect Constraint Safety
 
 type Gamma = Map.Map N.Name EffectScheme
 
 monoscheme :: TypeEffect -> LitPattern -> EffectScheme
 monoscheme tipe@(_ :@ var) lit =
-    Forall [] tipe (var ==== lit)
+    Forall [] tipe (var ==== lit) (Safety [])
 
 monoschemeVar :: TypeEffect -> EffectScheme
-monoschemeVar tipe = Forall [] tipe CTrue
+monoschemeVar tipe = Forall [] tipe CTrue (Safety [])
 
 
 
@@ -224,7 +224,7 @@ litLovalVars l = []
 typeFreeVars (t :@ e) = List.nub $ e: concatMap typeLocalVars (toList t)
 constrFreeVars (Fix c) = List.nub $ concatMap constrLocalVars ((Fix c) : toList c)
 litFreeVars (Fix l) = List.nub $ concatMap litLocalVars ((Fix l) : toList l)
-schemeFreeVars (Forall v t c) = List.nub $ (typeFreeVars t) ++ (constrFreeVars c)
+schemeFreeVars (Forall v t c s ) = List.nub $ (typeFreeVars t) ++ (constrFreeVars c) ++ (concatMap (constrFreeVars . fst) $ unSafety s)
 
 freshName :: (ConstrainM m) => String -> m String
 freshName s = do
@@ -238,21 +238,21 @@ freshVar = do
     desc <- freshName "SetVar"
     liftIO $ UF.fresh desc 
 
-instantiate :: (ConstrainM m) => EffectScheme -> m (TypeEffect, Constraint)
-instantiate (Forall boundVars tipe constr) = do
+instantiate :: (ConstrainM m) => EffectScheme -> m (TypeEffect, Constraint, Safety)
+instantiate (Forall boundVars tipe constr safety) = do
     freshVars <- forM [1 .. length boundVars] $ \ _ -> freshVar
     let subList =  zip boundVars freshVars
     let substFun x = Maybe.fromMaybe x (lookup x subList)
-    return $ (typeSubsts substFun tipe, constrSubsts substFun constr)
+    return $ (typeSubsts substFun tipe, constrSubsts substFun constr, Safety (map (\(c,r) -> (constrSubsts substFun c, r) ) $ unSafety safety))
 
 
-generalize :: Gamma -> TypeEffect -> Constraint  -> EffectScheme
-generalize _Gamma tipe constr =
+generalize :: Gamma -> TypeEffect -> Constraint  -> Safety -> EffectScheme
+generalize _Gamma tipe constr safety =
     let
-        allFreeVars = List.nub $ (typeFreeVars tipe) ++ (constrFreeVars constr)
+        allFreeVars = List.nub $ (typeFreeVars tipe) ++ (constrFreeVars constr) ++ (concatMap (constrFreeVars . fst) $ unSafety safety)
         gammaFreeVars = List.nub $ concatMap schemeFreeVars (Map.elems _Gamma)
     in
-        Forall (allFreeVars List.\\ gammaFreeVars) tipe constr
+        Forall (allFreeVars List.\\ gammaFreeVars) tipe constr safety
 
 
 toSC :: (ConstrainM m) => Constraint -> m SC.CExpr
@@ -425,10 +425,11 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
     self :: (ConstrainM m) => (Gamma, Constraint) -> Can.Expr ->   m (TypeEffect,  Constraint)
     self  = constrainExpr tyMap
     constrainExpr_ ::  (ConstrainM m) => Can.Expr_ -> TypeEffect -> (Gamma, Constraint) -> m Constraint
-    constrainExpr_ (Can.VarLocal name) t (_Gamma, _) = do
-        (tipe, constr) <- instantiate (_Gamma Map.! name)
+    constrainExpr_ (Can.VarLocal name) t (_Gamma, pathConstr) = do
+        (tipe, constr, safety) <- instantiate (_Gamma Map.! name)
         unifyTypes t tipe
-        return CTrue
+        forM (unSafety safety) $ \(c,r) -> tellSafety pathConstr c r
+        return constr
     constrainExpr_ (Can.VarTopLevel expr1 expr2) t _GammaPath = return $ t ==== Top --error "TODO get type from imports"
     constrainExpr_ (Can.VarCtor _ _ ctorName _ _) t _GammaPath =
       --Traverse the simple type of the constructor until it's not an arrow type
@@ -583,7 +584,7 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
     --Generalize should check that the safety constraints from the body will always hold
     --If the constraints on the types hold
     eitherToPatError $ solveConstraint (defConstr /\ CAnd (map fst $ unSafety safety))
-    let scheme = generalize (fst _GammaPath) defType defConstr
+    let scheme = generalize (fst _GammaPath) defType defConstr safety
     return $ Map.singleton x scheme
     where
         constrainDef_  (argPat : argList) body ((Fun dom cod) :@ vFun) _Gamma =
