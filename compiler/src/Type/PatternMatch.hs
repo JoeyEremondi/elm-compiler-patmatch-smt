@@ -52,7 +52,12 @@ import qualified Data.List as List
 
 import qualified Reporting.Result as Result
 
-type Variable = UF.Point ()
+import qualified SetConstraints.Solve as SC
+
+type Variable = UF.Point String
+
+newtype Arity = Arity {getArity :: Int}
+
 
 data TypeEffect_ typeEffect =
     TypeVar N.Name
@@ -78,19 +83,22 @@ data TypeEffect =  (TypeEffect_ TypeEffect) :@ Variable
 data LitPattern_ self =
     SetVar_ Variable
     | Ctor_ String [self]
-    | Proj_ String Int self
+    | Proj_ String Arity Int self
     | Top_
     | Bottom_
     | Intersect_ self self
     | Union_ self self
+    | Neg_ self
     deriving (Functor, Traversable, Foldable)
 
 pattern SetVar v = Fix ( SetVar_ v)
 pattern Ctor s l = Fix (Ctor_ s l)
-pattern Proj s i p = Fix (Proj_ s i p)
+pattern Proj s a i p = Fix (Proj_ s a i p)
 pattern Top = Fix Top_
 pattern Bottom = Fix Bottom_
 pattern Union x y = Fix (Union_ x y)
+pattern Intersect x y = Fix (Intersect_ x y)
+pattern Neg x = Fix (Neg_ x)
 
 data Constraint_ pat self =
     CAnd_ [self]
@@ -127,8 +135,8 @@ unions = foldr (\ a b ->  (toLit a) `union` b) Bottom
 intersects :: (Subsetable a) => [a] -> LitPattern
 intersects = foldr (\ a b ->  (toLit a) `intersect` b) Bottom
 
-union a b = unions [toLit a, toLit b]
-intersect a b = intersects [toLit a, toLit b]
+union a b =  toLit a `Union` toLit b
+intersect a b = toLit a `Intersect` toLit b
 
 class Subsetable a where
     toLit :: a -> LitPattern
@@ -212,9 +220,21 @@ constrFreeVars (Fix c) = List.nub $ concatMap constrLocalVars ((Fix c) : toList 
 litFreeVars (Fix l) = List.nub $ concatMap litLocalVars ((Fix l) : toList l)
 schemeFreeVars (Forall v t c) = List.nub $ (typeFreeVars t) ++ (constrFreeVars c)
 
-instantiate :: EffectScheme -> IO (TypeEffect, Constraint)
+freshName :: (ConstrainM m) => String -> m String
+freshName s = do
+    i <- State.get
+    State.put (i + 1)
+    return $ s ++ "_" ++  show i
+
+
+freshVar :: (ConstrainM m) => m Variable 
+freshVar = do
+    desc <- freshName "SetVar"
+    liftIO $ UF.fresh desc 
+
+instantiate :: (ConstrainM m) => EffectScheme -> m (TypeEffect, Constraint)
 instantiate (Forall boundVars tipe constr) = do
-    freshVars <- forM [1 .. length boundVars] $ \ _ -> UF.fresh ()
+    freshVars <- forM [1 .. length boundVars] $ \ _ -> freshVar
     let subList =  zip boundVars freshVars
     let substFun x = Maybe.fromMaybe x (lookup x subList)
     return $ (typeSubsts substFun tipe, constrSubsts substFun constr)
@@ -229,6 +249,47 @@ generalize _Gamma tipe constr =
         Forall (allFreeVars List.\\ gammaFreeVars) tipe constr
 
 
+toSC :: (ConstrainM m) => Constraint -> m SC.CExpr
+toSC c = case c of
+    CTrue -> return $ SC.CSubset SC.Top SC.Top
+    CAnd cl -> SC.CAnd <$> mapM toSC cl
+    COr cl -> SC.COr <$> mapM toSC cl
+    CNot c -> SC.CNot <$> toSC c
+    CSubset l1 l2 -> do
+        tform1 <- (toSCLit l1)
+        tform2 <- toSCLit l2
+        return $ tform1 $ \ e1 -> tform2 $ \ e2 -> SC.CSubset e1 e2 
+    CImplies c1 c2 -> SC.CImplies <$> (toSC c1) <*> (toSC c2)
+ 
+toSCLit :: (ConstrainM m) => LitPattern -> m ((SC.Expr -> SC.CExpr) -> SC.CExpr)
+toSCLit l = do
+    let simpleReturn x = return (\ f -> f x )
+    case l of 
+        SetVar uf -> do
+            varName <- liftIO $ UF.get uf
+            simpleReturn $ SC.Var varName
+        --Our theory doesn't support projections as expressions 
+        --So we generate a fresh variable and constrain that it must contain exactly the projection
+        Proj ctor arity i l -> do
+            projName <-  freshName "ProjVar"
+            tform <- toSCLit l
+            return $ \ f -> tform $ \ e -> SC.withProjection projName (getArity arity) (SC.Projection ctor i e) f
+        Union l1 l2 -> do
+            tform1 <- toSCLit l1
+            tform2 <- toSCLit l2
+            return $ \ f -> (tform1 $ \e1 -> tform2 $ \e2 -> f (SC.Union e1 e2))
+        Intersect l1 l2 -> do
+            tform1 <- toSCLit l1
+            tform2 <- toSCLit l2
+            return $ \ f -> (tform1 $ \e1 -> tform2 $ \e2 -> f (SC.Intersect e1 e2))
+        Neg l1 -> do
+            tform <- toSCLit l1
+            return $ \ f -> tform $ \e -> f (SC.Neg  e) 
+        
+solveConstraint :: ConstrainM m => Constraint -> m (Either String ())
+solveConstraint c = do
+    sc <- toSC c
+    liftIO $ SC.solve (SC.Options "" False "z3" False False False) sc 
 
 (==>) ::  Constraint -> Constraint -> Constraint
 x ==> y =  CImplies x y
@@ -242,7 +303,7 @@ c1 /\ c2 =  CAnd [c1, c2]
 
 c1 \/ c2 = COr [c1, c2]
 
-addEffectVars :: Can.Type -> IO TypeEffect
+addEffectVars :: (ConstrainM m) => Can.Type -> m TypeEffect
 addEffectVars (Can.TAlias t1 t2 t3 actualType) = case actualType of
     Can.Holey t -> addEffectVars t
     Can.Filled t -> addEffectVars t
@@ -259,7 +320,7 @@ addEffectVars t = do
                 Nothing -> return Nothing
                 Just t -> Just <$> addEffectVars t
             Tuple <$> addEffectVars t1 <*> addEffectVars t2 <*> (return mt3)
-    constraintVar <- UF.fresh ()
+    constraintVar <- freshVar
     return $ innerType :@ constraintVar
 -- addEffectVars (Can.Alias t1 t2 t3 actualType) = addEffectVars actualType
 -- addEffectVars t = do
@@ -286,18 +347,27 @@ addEffectVars t = do
 
 -- freshTE :: IO TypeEffect
 -- freshTE = do
---     tipe <- Var <$> UF.fresh () --TODO what descriptor?
---     effect <- UF.fresh () --TODO what descriptor?
+--     tipe <- Var <$> freshVar --TODO what descriptor?
+--     effect <- freshVar --TODO what descriptor?
 --     return $ tipe :@ effect
 
 
 unifyTypes :: (ConstrainM m) => TypeEffect -> TypeEffect -> m ()
-unifyTypes (_ :@ v1) (_ :@ v2) =
-    liftIO $ UF.union v1 v2 ()
+unifyTypes (_ :@ v1) (_ :@ v2) = do
+    desc <- liftIO $ UF.get v1
+    liftIO $ UF.union v1 v2 desc
     --TODO do we need to unify sub-vars?
 
 
-type ConstrainM m = (MonadIO m, MonadWriter Safety m, MonadError PatError.Error m )
+type ConstrainM m = (State.MonadState Int m, MonadIO m, MonadWriter Safety m, MonadError PatError.Error m )
+
+eitherToPatError :: (ConstrainM m) => m (Either String a) -> m a
+eitherToPatError comp = do
+    eitherVal <- comp
+    case eitherVal of
+        Right x -> return x
+        Left s -> error s 
+        --PatError.Incomplete _ PatError.BadArg [Pattern] 
 
 unpackEither :: (ConstrainM m ) => m (Either PatError.Error b) -> m b
 unpackEither ec = do
@@ -307,12 +377,12 @@ unpackEither ec = do
         Right b -> return b 
 
 newtype ConstrainMonad a = CM {
-    runCM :: ExceptT PatError.Error  (WriterT Safety IO) a
-} deriving (Functor, Applicative, Monad, MonadIO, MonadWriter Safety, MonadError PatError.Error)
+    runCM :: ExceptT PatError.Error  (WriterT Safety (StateT Int IO)) a
+} deriving (Functor, Applicative, Monad, MonadIO, MonadWriter Safety, MonadError PatError.Error, State.MonadState Int)
 
 runCMIO :: ConstrainMonad a -> IO (Either PatError.Error (a, Safety))
 runCMIO c = do
-    (maybeResult, safety) <- runWriterT $ runExceptT $ runCM c
+    (maybeResult, safety) <- flip State.evalStateT 0 $  runWriterT $ runExceptT $ runCM c
     return $ do
         result <- maybeResult
         return (result, safety)
@@ -338,7 +408,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
     self  = constrainExpr tyMap
     constrainExpr_ ::  (ConstrainM m) => Can.Expr_ -> TypeEffect -> (Gamma, Constraint) -> m Constraint
     constrainExpr_ (Can.VarLocal name) t (_Gamma, _) = do
-        (tipe, constr) <- liftIO $ instantiate (_Gamma Map.! name)
+        (tipe, constr) <- instantiate (_Gamma Map.! name)
         unifyTypes t tipe
         return CTrue
     constrainExpr_ (Can.VarTopLevel expr1 expr2) t _GammaPath = error "TODO get type from imports"
@@ -360,7 +430,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
         (patVars, branchConstrs) <- unzip <$>
             forM litBranches (
                 \(pat, lit, rhs) -> do
-                    v <- liftIO $ UF.fresh ()
+                    v <- freshVar
                     let canBeInBranch = ( toLit inputPatterns `intersect` lit) </< Bottom
                     let newEnv = envAfterMatch tyMap (toLit inputPatterns) pat
                     let newPathConstr = canBeInBranch /\ pathConstr
@@ -410,7 +480,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
             unzip <$>
                 forM conds (
                     \ (ifExp, thenExp) -> do
-                        retType <- liftIO $ UF.fresh ()
+                        retType <- freshVar
                         (ifType, ifCond) <- self _GammaPath ifExp
                         (thenType, thenCond) <- self _GammaPath thenExp
                         return (retType,
@@ -494,6 +564,7 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
     --not  occurring in Gamma, and return an environment mapping the def name to this scheme
     --Generalize should check that the safety constraints from the body will always hold
     --If the constraints on the types hold
+    eitherToPatError $ solveConstraint defConstr
     let scheme = generalize (fst _GammaPath) defType defConstr
     return $ Map.singleton x scheme
     where
@@ -535,7 +606,8 @@ envAfterMatch typesForRegions matchedPat (A.At region pat)  =
         ourType = typesForRegions Map.! region
         ctorProjectionEnvs  topPat nameString ctorArgPats =
             let
-                subPats = map ((flip $ Proj nameString) topPat) [1.. (length ctorArgPats)]
+                arity = Arity (length ctorArgPats)
+                subPats = map ((flip $ Proj nameString arity) topPat) [1.. (getArity arity)]
                 subDicts = zipWith ((envAfterMatch typesForRegions) ) subPats ctorArgPats
              in Map.unions subDicts
     in case pat of
@@ -613,7 +685,7 @@ patternMatchAnalysis modul = do
     let 
         eitherResult =  unsafePerformIO $ runCMIO $ do
             tyMapRaw <- liftIO $ readIORef Type.globalTypeMap
-            tyMap <- liftIO $ mapM addEffectVars tyMapRaw 
+            tyMap <- mapM addEffectVars tyMapRaw 
             helper tyMap (Can._decls modul) Map.empty
     case eitherResult of
         Left patError -> Result.throw $ Reporting.Error.Pattern [patError]
