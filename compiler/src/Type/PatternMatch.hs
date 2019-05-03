@@ -46,7 +46,7 @@ import qualified Reporting.Result as Result
 type Variable = UF.Point ()
 
 data TypeEffect_ typeEffect =
-    PlaceHolder N.Name
+    TypeVar N.Name
     | Alias ModuleName.Canonical N.Name [(N.Name, typeEffect)] typeEffect
     -- | Var Variable
     | App ModuleName.Canonical N.Name [typeEffect]
@@ -55,13 +55,16 @@ data TypeEffect_ typeEffect =
     | Record (Map.Map N.Name typeEffect) 
     | Unit
     | Tuple typeEffect typeEffect (Maybe typeEffect)
-    deriving (Functor, Traversable, Foldable)
+    deriving (Functor, Traversable, Foldable, Show)
 
+instance Show Variable where
+    show v = "VAR" 
 
 newtype Fix f = Fix {unfix :: f (Fix f)}
 
 infix 9 :@
 data TypeEffect =  (TypeEffect_ TypeEffect) :@ Variable
+    deriving Show 
 
 data LitPattern_ self =
     SetVar_ Variable
@@ -237,7 +240,7 @@ addEffectVars (Can.TAlias t1 t2 t3 actualType) = case actualType of
 addEffectVars t = do
     innerType <- case t of
         (Can.TLambda t1 t2) -> Fun <$> addEffectVars t1 <*> addEffectVars t2
-        (Can.TVar t) -> (error "TODO var conversion")
+        (Can.TVar n) -> return $ TypeVar n
         (Can.TType t1 t2 t3) -> (App t1 t2) <$> (mapM addEffectVars  t3)
         (Can.TRecord t1 t2) ->
             Record <$> (mapM (\ (Can.FieldType _ t) -> addEffectVars t) t1) 
@@ -455,14 +458,14 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
     (x, defType, defConstr) <- case def of
         --Get the type of the body, and add it into the environment as a monoscheme
         --To start our argument-processing loop
-        (Can.Def (A.At _ x) funArgs body@(A.At exprRegion _ )) -> do
-            let exprType = (tyMap Map.! exprRegion)
-            (exprConstr, safety) <- runCMIO $ constrainDef_  funArgs body exprType (Map.insert x (monoschemeVar exprType) _Gamma)
-            return (x, exprType, exprConstr)
-        (Can.TypedDef (A.At _ x) _ patTypes body@(A.At exprRegion _) _) -> do
-            let exprType = (tyMap Map.! exprRegion)
-            (exprConstr, safety) <- runCMIO $ constrainDef_  (map fst patTypes) body exprType (Map.insert x (monoschemeVar exprType) _Gamma)
-            return (x, exprType, exprConstr)
+        (Can.Def (A.At wholeRegion x) funArgs body) -> do
+            let wholeType = (tyMap Map.! wholeRegion)
+            (exprConstr, safety) <- runCMIO $ constrainDef_  funArgs body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
+            return (x, wholeType, exprConstr)
+        (Can.TypedDef (A.At wholeRegion x) _ patTypes body _) -> do
+            let wholeType = (tyMap Map.! wholeRegion)
+            (exprConstr, safety) <- runCMIO $ constrainDef_  (map fst patTypes) body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
+            return (x, wholeType, exprConstr)
     --Now that we have types and constraints for the body, we generalize them over all free variables
     --not  occurring in Gamma, and return an environment mapping the def name to this scheme
     --Generalize should check that the safety constraints from the body will always hold
@@ -480,6 +483,7 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
             --We can generalize it into a type scheme and return a new environment 
             --TODO run constraint solver at this point
             return bodyConstr
+        constrainDef_ argList body t _Gamma = error ("Got bad type " ++ show t ++ " for def num args " ++ show (length argList) )
 
 --Convert to our pattern format
 --Used to generate safety constraints for pattern matches 
