@@ -8,6 +8,7 @@
   
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Type.PatternMatch (patternMatchAnalysis) where
 
@@ -56,7 +57,7 @@ import qualified SetConstraints.Solve as SC
 
 type Variable = UF.Point String
 
-newtype Arity = Arity {getArity :: Int}
+newtype Arity = Arity {getArity :: Int} deriving (Show)
 
 
 data TypeEffect_ typeEffect =
@@ -89,7 +90,7 @@ data LitPattern_ self =
     | Intersect_ self self
     | Union_ self self
     | Neg_ self
-    deriving (Functor, Traversable, Foldable)
+    deriving (Functor, Traversable, Foldable, Show)
 
 pattern SetVar v = Fix ( SetVar_ v)
 pattern Ctor s l = Fix (Ctor_ s l)
@@ -116,10 +117,13 @@ pattern CSubset p1 p2 = Fix (CSubset_ p1 p2)
 pattern CTrue = Fix CTrue_
 pattern CNot x = Fix (CNot_ x)
 
-type LitPattern = Fix LitPattern_
+type LitPattern = Fix LitPattern_ 
 type Constraint = Fix (Constraint_ LitPattern)
 
-newtype Safety = Safety [(Constraint, R.Region)]
+deriving instance Show LitPattern
+
+
+newtype Safety = Safety {unSafety :: [(Constraint, R.Region)]}
     deriving (Monoid, Semigroup)
 
 (====) :: (Subsetable a, Subsetable b) => a -> b -> Constraint
@@ -130,10 +134,12 @@ p1 ==== p2 =
     (l1 << l2) /\ (l2 << l1)
 
 unions :: (Subsetable a) => [a] -> LitPattern
-unions = foldr (\ a b ->  (toLit a) `union` b) Bottom
+-- unions [] = Bottom
+unions (a : l) = foldr (\ a b ->  (toLit a) `union` b) (toLit a) l
 
 intersects :: (Subsetable a) => [a] -> LitPattern
-intersects = foldr (\ a b ->  (toLit a) `intersect` b) Bottom
+-- intersects [] = Top
+intersects (a : l) = foldr (\ a b ->  (toLit a) `intersect` b) (toLit a) l
 
 union a b =  toLit a `Union` toLit b
 intersect a b = toLit a `Intersect` toLit b
@@ -285,11 +291,23 @@ toSCLit l = do
         Neg l1 -> do
             tform <- toSCLit l1
             return $ \ f -> tform $ \e -> f (SC.Neg  e) 
+        Top -> simpleReturn $ SC.Top
+        Bottom -> simpleReturn $ SC.Bottom
+        Ctor name [] -> 
+            simpleReturn $ SC.FunApp name []
+        Ctor name (arg : args ) -> do
+            firstTform <- toSCLit arg
+            restTform <- toSCLit $ Ctor name args
+            
+            return $ \f -> firstTform $ \eArg -> restTform $ \eRest ->
+                case eRest of
+                    SC.FunApp name args -> f (SC.FunApp name (eArg:args))
+        l -> error $ "Missing case for lit" ++ show l
         
 solveConstraint :: ConstrainM m => Constraint -> m (Either String ())
 solveConstraint c = do
     sc <- toSC c
-    liftIO $ SC.solve (SC.Options "" False "z3" False False False) sc 
+    liftIO $ SC.solve (SC.Options "" True "z3" False False False) sc 
 
 (==>) ::  Constraint -> Constraint -> Constraint
 x ==> y =  CImplies x y
@@ -411,7 +429,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
         (tipe, constr) <- instantiate (_Gamma Map.! name)
         unifyTypes t tipe
         return CTrue
-    constrainExpr_ (Can.VarTopLevel expr1 expr2) t _GammaPath = error "TODO get type from imports"
+    constrainExpr_ (Can.VarTopLevel expr1 expr2) t _GammaPath = return $ t ==== Top --error "TODO get type from imports"
     constrainExpr_ (Can.VarCtor _ _ ctorName _ _) t _GammaPath =
       --Traverse the simple type of the constructor until it's not an arrow type
       --Collect the argument patterns, then apply the Ctor name to those patterns
@@ -545,7 +563,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
 --TODO check all this
 constrainDef :: (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Def ->   m Gamma
 constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
-    (x, defType, defConstr) <- case def of
+    (x, defType, defConstr, safety) <- case def of
         --Get the type of the body, and add it into the environment as a monoscheme
         --To start our argument-processing loop
         (Can.Def (A.At wholeRegion x) funArgs body) -> do
@@ -553,18 +571,18 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
             --We run in a separate instance, so we get different safety constraints
             --TODO need this?
             (exprConstr, safety) <- unpackEither $ liftIO $ runCMIO $ constrainDef_  funArgs body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
-            return (x, wholeType, exprConstr)
+            return (x, wholeType, exprConstr, safety)
         (Can.TypedDef (A.At wholeRegion x) _ patTypes body _) -> do
             let wholeType = (tyMap Map.! wholeRegion)
             --We run in a separate instance, so we get different safety constraints
             --TODO need this?
             (exprConstr, safety)  <- unpackEither $ liftIO $ runCMIO $ constrainDef_  (map fst patTypes) body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
-            return (x, wholeType, exprConstr)
+            return (x, wholeType, exprConstr, safety)
     --Now that we have types and constraints for the body, we generalize them over all free variables
     --not  occurring in Gamma, and return an environment mapping the def name to this scheme
     --Generalize should check that the safety constraints from the body will always hold
     --If the constraints on the types hold
-    eitherToPatError $ solveConstraint defConstr
+    eitherToPatError $ solveConstraint (defConstr /\ CAnd (map fst $ unSafety safety))
     let scheme = generalize (fst _GammaPath) defType defConstr
     return $ Map.singleton x scheme
     where

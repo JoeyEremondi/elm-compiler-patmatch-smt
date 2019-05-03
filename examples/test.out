@@ -1,22 +1,941 @@
-Region {_start = Position {_line = 2, _column = 1}, _end = Position {_line = 2, _column = 2}} : TLambda (TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []) (TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) [])
-Region {_start = Position {_line = 3, _column = 3}, _end = Position {_line = 3, _column = 16}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 3, _column = 7}, _end = Position {_line = 3, _column = 8}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 3, _column = 11}, _end = Position {_line = 3, _column = 12}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 3, _column = 11}, _end = Position {_line = 3, _column = 16}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 3, _column = 15}, _end = Position {_line = 3, _column = 16}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 4, _column = 3}, _end = Position {_line = 4, _column = 16}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 4, _column = 7}, _end = Position {_line = 4, _column = 8}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 4, _column = 11}, _end = Position {_line = 4, _column = 12}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 4, _column = 11}, _end = Position {_line = 4, _column = 16}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 4, _column = 15}, _end = Position {_line = 4, _column = 16}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 5, _column = 3}, _end = Position {_line = 5, _column = 18}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 5, _column = 7}, _end = Position {_line = 5, _column = 8}} : TLambda (TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []) (TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) [])
-Region {_start = Position {_line = 5, _column = 13}, _end = Position {_line = 5, _column = 14}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 5, _column = 13}, _end = Position {_line = 5, _column = 18}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 5, _column = 17}, _end = Position {_line = 5, _column = 18}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 6, _column = 3}, _end = Position {_line = 6, _column = 4}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 6, _column = 3}, _end = Position {_line = 6, _column = 8}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 6, _column = 3}, _end = Position {_line = 6, _column = 12}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 6, _column = 7}, _end = Position {_line = 6, _column = 8}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
-Region {_start = Position {_line = 6, _column = 11}, _end = Position {_line = 6, _column = 12}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
+Region {_start = Position {_line = 4, _column = 1}, _end = Position {_line = 4, _column = 2}} : TLambda (TType (Canonical {_package = Name {_author = "author", _project = "project"}, _module = Name {_name = "Main"}}) (Name {_name = "Foo"}) []) (TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) [])
+Region {_start = Position {_line = 4, _column = 3}, _end = Position {_line = 4, _column = 4}} : TVar (Name {_name = "a"})
+Region {_start = Position {_line = 4, _column = 7}, _end = Position {_line = 5, _column = 11}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
+Region {_start = Position {_line = 4, _column = 12}, _end = Position {_line = 4, _column = 13}} : TType (Canonical {_package = Name {_author = "author", _project = "project"}, _module = Name {_name = "Main"}}) (Name {_name = "Foo"}) []
+Region {_start = Position {_line = 5, _column = 3}, _end = Position {_line = 5, _column = 6}} : TVar (Name {_name = "a"})
+Region {_start = Position {_line = 5, _column = 10}, _end = Position {_line = 5, _column = 11}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
+Region {_start = Position {_line = 7, _column = 1}, _end = Position {_line = 7, _column = 2}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
+Region {_start = Position {_line = 7, _column = 5}, _end = Position {_line = 7, _column = 6}} : TLambda (TType (Canonical {_package = Name {_author = "author", _project = "project"}, _module = Name {_name = "Main"}}) (Name {_name = "Foo"}) []) (TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) [])
+Region {_start = Position {_line = 7, _column = 5}, _end = Position {_line = 7, _column = 10}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
+Region {_start = Position {_line = 7, _column = 7}, _end = Position {_line = 7, _column = 10}} : TType (Canonical {_package = Name {_author = "author", _project = "project"}, _module = Name {_name = "Main"}}) (Name {_name = "Foo"}) []
+[send->] (set-option :print-success true )
+[<-recv] success
+[send->] (set-option :produce-models true )
+[<-recv] success
+cInitial: CAnd [CSubset Top Top,CSubset (Var "SetVar_4") (Var "SetVar_0"),CSubset (Var "SetVar_0") (Var "SetVar_4"),CAnd [CImplies (CNot (CSubset (Intersect (Var "SetVar_5") (FunApp "Bar" [])) Bottom)) (CAnd [CSubset (Var "SetVar_0") (Var "SetVar_7"),CSubset (Var "SetVar_7") (Var "SetVar_0")]),CImplies (CNot (CNot (CSubset (Intersect (Var "SetVar_5") (FunApp "Bar" [])) Bottom))) (CAnd [CSubset (Var "SetVar_0") Bottom,CSubset Bottom (Var "SetVar_0")])],CImplies (CSubset Top Top) (CSubset (Var "SetVar_5") (FunApp "Bar" []))]
+[send->] (set-logic UF )
+[<-recv] success
+[send->] (set-option :smt.mbqi true )
+[<-recv] success
+[send->] (set-option :produce-unsat-cores true )
+[<-recv] success
+[send->] (push )
+[<-recv] success
+[send->] (declare-fun literal_0 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_1 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_2 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_3 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_4 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_5 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_6 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_7 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_8 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_9 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_10 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_11 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_12 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_13 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_14 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_15 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_16 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_17 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_18 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_19 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_20 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_21 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_22 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_23 () Bool )
+[<-recv] success
+[send->] (assert (and (and (and (and literal_14 literal_4 literal_0 (and (=> (not literal_11 ) (and literal_1 literal_8 ) ) (=> (not (not literal_11 ) ) (and literal_3 literal_16 ) ) ) (=> literal_14 literal_6 ) ) (not literal_15 ) ) (and literal_2 literal_5 literal_7 literal_9 literal_10 literal_12 (not literal_13 ) literal_14 (not literal_15 ) literal_16 literal_17 literal_18 literal_19 literal_20 literal_21 literal_22 literal_23 ) ) (and (=> (and literal_0 literal_5 ) literal_2 ) (=> (and literal_1 literal_9 ) literal_2 ) (=> (and literal_2 literal_14 ) literal_2 ) (=> (and literal_2 literal_15 ) literal_3 ) (=> (and literal_3 literal_17 ) literal_0 ) (=> (and literal_3 literal_19 ) literal_1 ) (=> (and literal_3 literal_22 ) literal_2 ) (=> (and literal_3 literal_23 ) literal_3 ) (=> (and literal_4 literal_2 ) literal_5 ) (=> (and literal_5 literal_14 ) literal_5 ) (=> (and literal_6 literal_12 ) literal_7 ) (=> (and literal_7 literal_14 ) literal_7 ) (=> (and literal_8 literal_2 ) literal_9 ) (=> (and literal_9 literal_14 ) literal_9 ) (=> (and literal_10 literal_14 ) literal_10 ) (=> (and literal_10 literal_15 ) literal_11 ) (=> (and literal_11 literal_22 ) literal_10 ) (=> (and literal_11 literal_23 ) literal_11 ) (=> (and literal_12 literal_14 ) literal_12 ) (=> (and literal_12 literal_15 ) literal_13 ) (=> (and literal_13 literal_22 ) literal_12 ) (=> (and literal_13 literal_23 ) literal_13 ) (=> (and literal_14 literal_14 ) literal_14 ) (=> (and literal_14 literal_15 ) literal_15 ) (=> (and literal_15 literal_22 ) literal_14 ) (=> (and literal_15 literal_23 ) literal_15 ) (=> (and literal_16 literal_0 ) literal_17 ) (=> (and literal_16 literal_1 ) literal_19 ) (=> (and literal_16 literal_2 ) literal_22 ) (=> (and literal_16 literal_3 ) literal_23 ) (=> (and literal_17 literal_4 ) literal_16 ) (=> (and literal_17 literal_5 ) literal_22 ) (=> (and literal_18 literal_6 ) literal_21 ) (=> (and literal_18 literal_7 ) literal_22 ) (=> (and literal_19 literal_8 ) literal_16 ) (=> (and literal_19 literal_9 ) literal_22 ) (=> (and literal_20 literal_10 ) literal_22 ) (=> (and literal_20 literal_11 ) literal_23 ) (=> (and literal_21 literal_12 ) literal_22 ) (=> (and literal_21 literal_13 ) literal_23 ) (=> (and literal_22 literal_14 ) literal_22 ) (=> (and literal_22 literal_15 ) literal_23 ) (=> (and literal_23 literal_16 ) literal_16 ) (=> (and literal_23 literal_17 ) literal_17 ) (=> (and literal_23 literal_18 ) literal_18 ) (=> (and literal_23 literal_19 ) literal_19 ) (=> (and literal_23 literal_20 ) literal_20 ) (=> (and literal_23 literal_21 ) literal_21 ) (=> (and literal_23 literal_22 ) literal_22 ) (=> (and literal_23 literal_23 ) literal_23 ) ) ) )
+[<-recv] success
+Done asserting formula, 10 base literals, 24 literals total
+Partitioned into 9 subproblems: [[Literal {unLiteral = (Bottom,Var "SetVar_0")},Literal {unLiteral = (Var "SetVar_7",Var "SetVar_0")},Literal {unLiteral = (Bottom,Var "SetVar_7")},Literal {unLiteral = (Var "SetVar_7",Top)},Literal {unLiteral = (Var "SetVar_0",Var "SetVar_7")},Literal {unLiteral = (Var "SetVar_4",Var "SetVar_0")},Literal {unLiteral = (Bottom,Var "SetVar_4")},Literal {unLiteral = (Var "SetVar_4",Top)},Literal {unLiteral = (Var "SetVar_0",Var "SetVar_4")},Literal {unLiteral = (Var "SetVar_0",Bottom)},Literal {unLiteral = (Var "SetVar_0",Top)}],[Literal {unLiteral = (Bottom,Intersect (Var "SetVar_5") (FunApp "Bar" []))},Literal {unLiteral = (Bottom,Var "SetVar_5")},Literal {unLiteral = (Intersect (Var "SetVar_5") (FunApp "Bar" []),Bottom)},Literal {unLiteral = (Intersect (Var "SetVar_5") (FunApp "Bar" []),Top)},Literal {unLiteral = (Var "SetVar_5",Top)},Literal {unLiteral = (Var "SetVar_5",FunApp "Bar" [])}],[Literal {unLiteral = (FunApp "Bar" [],Top)}],[Literal {unLiteral = (FunApp "Bar" [],Bottom)}],[Literal {unLiteral = (Top,Top)}],[Literal {unLiteral = (Top,Bottom)}],[Literal {unLiteral = (Bottom,FunApp "Bar" [])}],[Literal {unLiteral = (Bottom,Top)}],[Literal {unLiteral = (Bottom,Bottom)}]]
+Done asserting subset properties
+Done asserting transitivity
+Lit Vars: [(Literal {unLiteral = (Var "SetVar_0",Var "SetVar_4")},Atom "literal_0"),(Literal {unLiteral = (Var "SetVar_0",Var "SetVar_7")},Atom "literal_1"),(Literal {unLiteral = (Var "SetVar_0",Top)},Atom "literal_2"),(Literal {unLiteral = (Var "SetVar_0",Bottom)},Atom "literal_3"),(Literal {unLiteral = (Var "SetVar_4",Var "SetVar_0")},Atom "literal_4"),(Literal {unLiteral = (Var "SetVar_4",Top)},Atom "literal_5"),(Literal {unLiteral = (Var "SetVar_5",FunApp "Bar" [])},Atom "literal_6"),(Literal {unLiteral = (Var "SetVar_5",Top)},Atom "literal_7"),(Literal {unLiteral = (Var "SetVar_7",Var "SetVar_0")},Atom "literal_8"),(Literal {unLiteral = (Var "SetVar_7",Top)},Atom "literal_9"),(Literal {unLiteral = (Intersect (Var "SetVar_5") (FunApp "Bar" []),Top)},Atom "literal_10"),(Literal {unLiteral = (Intersect (Var "SetVar_5") (FunApp "Bar" []),Bottom)},Atom "literal_11"),(Literal {unLiteral = (FunApp "Bar" [],Top)},Atom "literal_12"),(Literal {unLiteral = (FunApp "Bar" [],Bottom)},Atom "literal_13"),(Literal {unLiteral = (Top,Top)},Atom "literal_14"),(Literal {unLiteral = (Top,Bottom)},Atom "literal_15"),(Literal {unLiteral = (Bottom,Var "SetVar_0")},Atom "literal_16"),(Literal {unLiteral = (Bottom,Var "SetVar_4")},Atom "literal_17"),(Literal {unLiteral = (Bottom,Var "SetVar_5")},Atom "literal_18"),(Literal {unLiteral = (Bottom,Var "SetVar_7")},Atom "literal_19"),(Literal {unLiteral = (Bottom,Intersect (Var "SetVar_5") (FunApp "Bar" []))},Atom "literal_20"),(Literal {unLiteral = (Bottom,FunApp "Bar" [])},Atom "literal_21"),(Literal {unLiteral = (Bottom,Top)},Atom "literal_22"),(Literal {unLiteral = (Bottom,Bottom)},Atom "literal_23")]
+Pred numbers: fromList [(PVar "SetVar_0",0),(PVar "SetVar_4",1),(PVar "SetVar_5",3),(PVar "SetVar_7",2),(PFunApp "Bar" [],4)]
+In theory solver, numBits: 5
+Declaring domain
+[send->] (define-fun domain ((z_boolDomain-0 Bool ) (z_boolDomain-1 Bool ) (z_boolDomain-2 Bool ) (z_boolDomain-3 Bool ) (z_boolDomain-4 Bool ) ) Bool (and true true true true (not false ) true true (= (and z_boolDomain-3 z_boolDomain-4 ) (and z_boolDomain-3 z_boolDomain-4 ) ) (=> literal_0 (=> z_boolDomain-0 z_boolDomain-1 ) ) (=> literal_1 (=> z_boolDomain-0 z_boolDomain-2 ) ) (=> literal_2 (=> z_boolDomain-0 true ) ) (=> literal_3 (=> z_boolDomain-0 false ) ) (=> literal_4 (=> z_boolDomain-1 z_boolDomain-0 ) ) (=> literal_5 (=> z_boolDomain-1 true ) ) (=> literal_6 (=> z_boolDomain-3 z_boolDomain-4 ) ) (=> literal_7 (=> z_boolDomain-3 true ) ) (=> literal_8 (=> z_boolDomain-2 z_boolDomain-0 ) ) (=> literal_9 (=> z_boolDomain-2 true ) ) (=> literal_10 (=> (and z_boolDomain-3 z_boolDomain-4 ) true ) ) (=> literal_11 (=> (and z_boolDomain-3 z_boolDomain-4 ) false ) ) (=> literal_12 (=> z_boolDomain-4 true ) ) (=> literal_13 (=> z_boolDomain-4 false ) ) (=> literal_14 (=> true true ) ) (=> literal_15 (=> true false ) ) (=> literal_16 (=> false z_boolDomain-0 ) ) (=> literal_17 (=> false z_boolDomain-1 ) ) (=> literal_18 (=> false z_boolDomain-3 ) ) (=> literal_19 (=> false z_boolDomain-2 ) ) (=> literal_20 (=> false (and z_boolDomain-3 z_boolDomain-4 ) ) ) (=> literal_21 (=> false z_boolDomain-4 ) ) (=> literal_22 (=> false true ) ) (=> literal_23 (=> false false ) ) ) )
+[<-recv] success
+Declaring constructors
+[send->] (declare-fun Bar-0 () Bool )
+[<-recv] success
+[send->] (declare-fun Bar-1 () Bool )
+[<-recv] success
+[send->] (declare-fun Bar-2 () Bool )
+[<-recv] success
+[send->] (declare-fun Bar-3 () Bool )
+[<-recv] success
+[send->] (define-fun Bar-4 () Bool true )
+[<-recv] success
+Declaring existentials
+[send->] (declare-fun x_exists_23-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_23-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_23-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_23-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_23-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_23-0 x_exists_23-1 x_exists_23-2 x_exists_23-3 x_exists_23-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_22-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_22-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_22-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_22-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_22-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_22-0 x_exists_22-1 x_exists_22-2 x_exists_22-3 x_exists_22-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_21-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_21-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_21-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_21-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_21-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_21-0 x_exists_21-1 x_exists_21-2 x_exists_21-3 x_exists_21-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_20-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_20-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_20-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_20-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_20-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_20-0 x_exists_20-1 x_exists_20-2 x_exists_20-3 x_exists_20-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_19-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_19-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_19-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_19-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_19-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_19-0 x_exists_19-1 x_exists_19-2 x_exists_19-3 x_exists_19-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_18-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_18-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_18-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_18-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_18-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_18-0 x_exists_18-1 x_exists_18-2 x_exists_18-3 x_exists_18-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_17-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_17-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_17-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_17-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_17-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_17-0 x_exists_17-1 x_exists_17-2 x_exists_17-3 x_exists_17-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_16-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_16-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_16-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_16-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_16-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_16-0 x_exists_16-1 x_exists_16-2 x_exists_16-3 x_exists_16-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_15-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_15-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_15-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_15-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_15-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_15-0 x_exists_15-1 x_exists_15-2 x_exists_15-3 x_exists_15-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_14-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_14-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_14-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_14-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_14-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_14-0 x_exists_14-1 x_exists_14-2 x_exists_14-3 x_exists_14-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_13-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_13-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_13-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_13-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_13-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_13-0 x_exists_13-1 x_exists_13-2 x_exists_13-3 x_exists_13-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_12-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_12-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_12-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_12-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_12-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_12-0 x_exists_12-1 x_exists_12-2 x_exists_12-3 x_exists_12-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_11-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_11-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_11-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_11-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_11-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_11-0 x_exists_11-1 x_exists_11-2 x_exists_11-3 x_exists_11-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_10-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_10-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_10-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_10-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_10-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_10-0 x_exists_10-1 x_exists_10-2 x_exists_10-3 x_exists_10-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_9-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_9-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_9-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_9-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_9-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_9-0 x_exists_9-1 x_exists_9-2 x_exists_9-3 x_exists_9-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_8-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_8-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_8-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_8-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_8-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_8-0 x_exists_8-1 x_exists_8-2 x_exists_8-3 x_exists_8-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_7-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_7-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_7-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_7-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_7-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_7-0 x_exists_7-1 x_exists_7-2 x_exists_7-3 x_exists_7-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_6-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_6-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_6-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_6-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_6-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_6-0 x_exists_6-1 x_exists_6-2 x_exists_6-3 x_exists_6-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_5-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_5-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_5-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_5-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_5-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_5-0 x_exists_5-1 x_exists_5-2 x_exists_5-3 x_exists_5-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_4-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_4-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_4-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_4-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_4-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_4-0 x_exists_4-1 x_exists_4-2 x_exists_4-3 x_exists_4-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_3-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_3-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_3-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_3-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_3-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_3-0 x_exists_3-1 x_exists_3-2 x_exists_3-3 x_exists_3-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_2-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_2-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_2-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_2-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_2-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_2-0 x_exists_2-1 x_exists_2-2 x_exists_2-3 x_exists_2-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_1-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_1-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_1-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_1-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_1-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_1-0 x_exists_1-1 x_exists_1-2 x_exists_1-3 x_exists_1-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_0-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_0-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_0-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_0-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_0-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_0-0 x_exists_0-1 x_exists_0-2 x_exists_0-3 x_exists_0-4 ) )
+[<-recv] success
+Assert existential properties
+[send->] (assert (=> (not literal_0 ) (and x_exists_0-0 (not x_exists_0-1 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_1 ) (and x_exists_1-0 (not x_exists_1-2 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_2 ) (and x_exists_2-0 (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_3 ) (and x_exists_3-0 (not false ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_4 ) (and x_exists_4-1 (not x_exists_4-0 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_5 ) (and x_exists_5-1 (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_6 ) (and x_exists_6-3 (not x_exists_6-4 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_7 ) (and x_exists_7-3 (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_8 ) (and x_exists_8-2 (not x_exists_8-0 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_9 ) (and x_exists_9-2 (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_10 ) (and (and x_exists_10-3 x_exists_10-4 ) (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_11 ) (and (and x_exists_11-3 x_exists_11-4 ) (not false ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_12 ) (and x_exists_12-4 (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_13 ) (and x_exists_13-4 (not false ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_14 ) (and true (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_15 ) (and true (not false ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_16 ) (and false (not x_exists_16-0 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_17 ) (and false (not x_exists_17-1 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_18 ) (and false (not x_exists_18-3 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_19 ) (and false (not x_exists_19-2 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_20 ) (and false (not (and x_exists_20-3 x_exists_20-4 ) ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_21 ) (and false (not x_exists_21-4 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_22 ) (and false (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_23 ) (and false (not false ) ) ) )
+[<-recv] success
+Asserting function domain properties
+[send->] (assert (forall ((y_univ_1-0 Bool ) (y_univ_1-1 Bool ) (y_univ_1-2 Bool ) (y_univ_1-3 Bool ) (y_univ_1-4 Bool ) (y_univ_2-0 Bool ) (y_univ_2-1 Bool ) (y_univ_2-2 Bool ) (y_univ_2-3 Bool ) (y_univ_2-4 Bool ) ) (and (=> (and (domain y_univ_1-0 y_univ_1-1 y_univ_1-2 y_univ_1-3 y_univ_1-4 ) (domain y_univ_2-0 y_univ_2-1 y_univ_2-2 y_univ_2-3 y_univ_2-4 ) ) (and true true true true true true (and (= true Bar-4 ) true ) true ) ) (domain Bar-0 Bar-1 Bar-2 Bar-3 Bar-4 ) ) ) )
+[<-recv] success
+About do check SAT
+[send->] (check-sat )
+[stderr] (smt.propagate-values)
+[stderr] (smt.nnf-cnf)
+[stderr] (smt.reduce-asserted)
+[stderr] (smt.refine-injectivity)
+[stderr] (smt.pattern-inference)
+[stderr] (smt.maximizing-bv-sharing)
+[stderr] (smt.reduce-asserted)
+[stderr] (smt.simplifier-done)
+[stderr] (smt.searching)
+[stderr] (smt.simplifying-clause-set :num-deleted-clauses 0)
+[stderr] is_solved
+[<-recv] sat
+Found Solution
+[send->] (set-option :print-success true )
+[<-recv] success
+[send->] (set-option :produce-models true )
+[<-recv] success
+cInitial: CAnd [CSubset (Var "SetVar_10") (Var "SetVar_12"),CSubset (Var "SetVar_12") (Var "SetVar_10"),CSubset (Var "SetVar_13") (Var "SetVar_9"),CSubset (Var "SetVar_9") (Var "SetVar_13"),CSubset (Var "SetVar_11") Top,CSubset Top (Var "SetVar_11"),CAnd [CSubset Top Top,CSubset (Var "SetVar_13") (FunApp "Baz" []),CSubset (FunApp "Baz" []) (Var "SetVar_13")]]
+[send->] (set-logic UF )
+[<-recv] success
+[send->] (set-option :smt.mbqi true )
+[<-recv] success
+[send->] (set-option :produce-unsat-cores true )
+[<-recv] success
+[send->] (push )
+[<-recv] success
+[send->] (declare-fun literal_0 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_1 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_2 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_3 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_4 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_5 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_6 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_7 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_8 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_9 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_10 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_11 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_12 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_13 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_14 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_15 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_16 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_17 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_18 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_19 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_20 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_21 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_22 () Bool )
+[<-recv] success
+[send->] (declare-fun literal_23 () Bool )
+[<-recv] success
+[send->] (assert (and (and (and (and literal_0 literal_3 literal_5 literal_8 literal_2 literal_13 (and literal_14 literal_6 literal_10 ) ) (not literal_15 ) ) (and literal_1 literal_2 literal_4 literal_7 literal_9 literal_11 (not literal_12 ) literal_14 (not literal_15 ) literal_16 literal_17 literal_18 literal_19 literal_20 literal_21 literal_22 literal_23 ) ) (and (=> (and literal_0 literal_4 ) literal_1 ) (=> (and literal_1 literal_14 ) literal_1 ) (=> (and literal_2 literal_14 ) literal_2 ) (=> (and literal_3 literal_1 ) literal_4 ) (=> (and literal_4 literal_14 ) literal_4 ) (=> (and literal_5 literal_9 ) literal_7 ) (=> (and literal_6 literal_11 ) literal_7 ) (=> (and literal_7 literal_14 ) literal_7 ) (=> (and literal_8 literal_7 ) literal_9 ) (=> (and literal_9 literal_14 ) literal_9 ) (=> (and literal_10 literal_7 ) literal_11 ) (=> (and literal_11 literal_14 ) literal_11 ) (=> (and literal_11 literal_15 ) literal_12 ) (=> (and literal_12 literal_19 ) literal_10 ) (=> (and literal_12 literal_22 ) literal_11 ) (=> (and literal_12 literal_23 ) literal_12 ) (=> (and literal_13 literal_2 ) literal_14 ) (=> (and literal_14 literal_13 ) literal_13 ) (=> (and literal_14 literal_14 ) literal_14 ) (=> (and literal_14 literal_15 ) literal_15 ) (=> (and literal_15 literal_17 ) literal_13 ) (=> (and literal_15 literal_22 ) literal_14 ) (=> (and literal_15 literal_23 ) literal_15 ) (=> (and literal_16 literal_0 ) literal_18 ) (=> (and literal_16 literal_1 ) literal_22 ) (=> (and literal_17 literal_2 ) literal_22 ) (=> (and literal_18 literal_3 ) literal_16 ) (=> (and literal_18 literal_4 ) literal_22 ) (=> (and literal_19 literal_5 ) literal_20 ) (=> (and literal_19 literal_6 ) literal_21 ) (=> (and literal_19 literal_7 ) literal_22 ) (=> (and literal_20 literal_8 ) literal_19 ) (=> (and literal_20 literal_9 ) literal_22 ) (=> (and literal_21 literal_10 ) literal_19 ) (=> (and literal_21 literal_11 ) literal_22 ) (=> (and literal_21 literal_12 ) literal_23 ) (=> (and literal_22 literal_13 ) literal_17 ) (=> (and literal_22 literal_14 ) literal_22 ) (=> (and literal_22 literal_15 ) literal_23 ) (=> (and literal_23 literal_16 ) literal_16 ) (=> (and literal_23 literal_17 ) literal_17 ) (=> (and literal_23 literal_18 ) literal_18 ) (=> (and literal_23 literal_19 ) literal_19 ) (=> (and literal_23 literal_20 ) literal_20 ) (=> (and literal_23 literal_21 ) literal_21 ) (=> (and literal_23 literal_22 ) literal_22 ) (=> (and literal_23 literal_23 ) literal_23 ) ) ) )
+[<-recv] success
+Done asserting formula, 10 base literals, 24 literals total
+Partitioned into 10 subproblems: [[Literal {unLiteral = (Bottom,Var "SetVar_10")},Literal {unLiteral = (Var "SetVar_12",Var "SetVar_10")},Literal {unLiteral = (Bottom,Var "SetVar_12")},Literal {unLiteral = (Var "SetVar_12",Top)},Literal {unLiteral = (Var "SetVar_10",Var "SetVar_12")},Literal {unLiteral = (Var "SetVar_10",Top)}],[Literal {unLiteral = (Bottom,Var "SetVar_11")},Literal {unLiteral = (Top,Var "SetVar_11")},Literal {unLiteral = (Var "SetVar_11",Top)}],[Literal {unLiteral = (Bottom,Var "SetVar_13")},Literal {unLiteral = (FunApp "Baz" [],Var "SetVar_13")},Literal {unLiteral = (Var "SetVar_9",Var "SetVar_13")},Literal {unLiteral = (Bottom,Var "SetVar_9")},Literal {unLiteral = (Var "SetVar_9",Top)},Literal {unLiteral = (Var "SetVar_13",Var "SetVar_9")},Literal {unLiteral = (Var "SetVar_13",Top)},Literal {unLiteral = (Var "SetVar_13",FunApp "Baz" [])}],[Literal {unLiteral = (FunApp "Baz" [],Top)}],[Literal {unLiteral = (FunApp "Baz" [],Bottom)}],[Literal {unLiteral = (Top,Top)}],[Literal {unLiteral = (Top,Bottom)}],[Literal {unLiteral = (Bottom,FunApp "Baz" [])}],[Literal {unLiteral = (Bottom,Top)}],[Literal {unLiteral = (Bottom,Bottom)}]]
+Done asserting subset properties
+Done asserting transitivity
+Lit Vars: [(Literal {unLiteral = (Var "SetVar_10",Var "SetVar_12")},Atom "literal_0"),(Literal {unLiteral = (Var "SetVar_10",Top)},Atom "literal_1"),(Literal {unLiteral = (Var "SetVar_11",Top)},Atom "literal_2"),(Literal {unLiteral = (Var "SetVar_12",Var "SetVar_10")},Atom "literal_3"),(Literal {unLiteral = (Var "SetVar_12",Top)},Atom "literal_4"),(Literal {unLiteral = (Var "SetVar_13",Var "SetVar_9")},Atom "literal_5"),(Literal {unLiteral = (Var "SetVar_13",FunApp "Baz" [])},Atom "literal_6"),(Literal {unLiteral = (Var "SetVar_13",Top)},Atom "literal_7"),(Literal {unLiteral = (Var "SetVar_9",Var "SetVar_13")},Atom "literal_8"),(Literal {unLiteral = (Var "SetVar_9",Top)},Atom "literal_9"),(Literal {unLiteral = (FunApp "Baz" [],Var "SetVar_13")},Atom "literal_10"),(Literal {unLiteral = (FunApp "Baz" [],Top)},Atom "literal_11"),(Literal {unLiteral = (FunApp "Baz" [],Bottom)},Atom "literal_12"),(Literal {unLiteral = (Top,Var "SetVar_11")},Atom "literal_13"),(Literal {unLiteral = (Top,Top)},Atom "literal_14"),(Literal {unLiteral = (Top,Bottom)},Atom "literal_15"),(Literal {unLiteral = (Bottom,Var "SetVar_10")},Atom "literal_16"),(Literal {unLiteral = (Bottom,Var "SetVar_11")},Atom "literal_17"),(Literal {unLiteral = (Bottom,Var "SetVar_12")},Atom "literal_18"),(Literal {unLiteral = (Bottom,Var "SetVar_13")},Atom "literal_19"),(Literal {unLiteral = (Bottom,Var "SetVar_9")},Atom "literal_20"),(Literal {unLiteral = (Bottom,FunApp "Baz" [])},Atom "literal_21"),(Literal {unLiteral = (Bottom,Top)},Atom "literal_22"),(Literal {unLiteral = (Bottom,Bottom)},Atom "literal_23")]
+Pred numbers: fromList [(PVar "SetVar_10",0),(PVar "SetVar_11",2),(PVar "SetVar_12",1),(PVar "SetVar_13",3),(PVar "SetVar_9",4),(PFunApp "Baz" [],5)]
+In theory solver, numBits: 6
+Declaring domain
+[send->] (define-fun domain ((z_boolDomain-0 Bool ) (z_boolDomain-1 Bool ) (z_boolDomain-2 Bool ) (z_boolDomain-3 Bool ) (z_boolDomain-4 Bool ) (z_boolDomain-5 Bool ) ) Bool (and true true true true true true true (not false ) (=> literal_0 (=> z_boolDomain-0 z_boolDomain-1 ) ) (=> literal_1 (=> z_boolDomain-0 true ) ) (=> literal_2 (=> z_boolDomain-2 true ) ) (=> literal_3 (=> z_boolDomain-1 z_boolDomain-0 ) ) (=> literal_4 (=> z_boolDomain-1 true ) ) (=> literal_5 (=> z_boolDomain-3 z_boolDomain-4 ) ) (=> literal_6 (=> z_boolDomain-3 z_boolDomain-5 ) ) (=> literal_7 (=> z_boolDomain-3 true ) ) (=> literal_8 (=> z_boolDomain-4 z_boolDomain-3 ) ) (=> literal_9 (=> z_boolDomain-4 true ) ) (=> literal_10 (=> z_boolDomain-5 z_boolDomain-3 ) ) (=> literal_11 (=> z_boolDomain-5 true ) ) (=> literal_12 (=> z_boolDomain-5 false ) ) (=> literal_13 (=> true z_boolDomain-2 ) ) (=> literal_14 (=> true true ) ) (=> literal_15 (=> true false ) ) (=> literal_16 (=> false z_boolDomain-0 ) ) (=> literal_17 (=> false z_boolDomain-2 ) ) (=> literal_18 (=> false z_boolDomain-1 ) ) (=> literal_19 (=> false z_boolDomain-3 ) ) (=> literal_20 (=> false z_boolDomain-4 ) ) (=> literal_21 (=> false z_boolDomain-5 ) ) (=> literal_22 (=> false true ) ) (=> literal_23 (=> false false ) ) ) )
+[<-recv] success
+Declaring constructors
+[send->] (declare-fun Baz-0 () Bool )
+[<-recv] success
+[send->] (declare-fun Baz-1 () Bool )
+[<-recv] success
+[send->] (declare-fun Baz-2 () Bool )
+[<-recv] success
+[send->] (declare-fun Baz-3 () Bool )
+[<-recv] success
+[send->] (declare-fun Baz-4 () Bool )
+[<-recv] success
+[send->] (define-fun Baz-5 () Bool true )
+[<-recv] success
+Declaring existentials
+[send->] (declare-fun x_exists_23-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_23-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_23-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_23-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_23-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_23-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_23-0 x_exists_23-1 x_exists_23-2 x_exists_23-3 x_exists_23-4 x_exists_23-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_22-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_22-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_22-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_22-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_22-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_22-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_22-0 x_exists_22-1 x_exists_22-2 x_exists_22-3 x_exists_22-4 x_exists_22-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_21-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_21-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_21-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_21-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_21-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_21-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_21-0 x_exists_21-1 x_exists_21-2 x_exists_21-3 x_exists_21-4 x_exists_21-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_20-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_20-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_20-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_20-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_20-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_20-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_20-0 x_exists_20-1 x_exists_20-2 x_exists_20-3 x_exists_20-4 x_exists_20-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_19-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_19-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_19-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_19-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_19-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_19-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_19-0 x_exists_19-1 x_exists_19-2 x_exists_19-3 x_exists_19-4 x_exists_19-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_18-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_18-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_18-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_18-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_18-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_18-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_18-0 x_exists_18-1 x_exists_18-2 x_exists_18-3 x_exists_18-4 x_exists_18-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_17-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_17-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_17-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_17-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_17-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_17-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_17-0 x_exists_17-1 x_exists_17-2 x_exists_17-3 x_exists_17-4 x_exists_17-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_16-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_16-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_16-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_16-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_16-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_16-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_16-0 x_exists_16-1 x_exists_16-2 x_exists_16-3 x_exists_16-4 x_exists_16-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_15-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_15-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_15-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_15-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_15-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_15-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_15-0 x_exists_15-1 x_exists_15-2 x_exists_15-3 x_exists_15-4 x_exists_15-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_14-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_14-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_14-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_14-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_14-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_14-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_14-0 x_exists_14-1 x_exists_14-2 x_exists_14-3 x_exists_14-4 x_exists_14-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_13-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_13-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_13-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_13-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_13-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_13-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_13-0 x_exists_13-1 x_exists_13-2 x_exists_13-3 x_exists_13-4 x_exists_13-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_12-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_12-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_12-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_12-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_12-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_12-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_12-0 x_exists_12-1 x_exists_12-2 x_exists_12-3 x_exists_12-4 x_exists_12-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_11-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_11-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_11-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_11-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_11-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_11-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_11-0 x_exists_11-1 x_exists_11-2 x_exists_11-3 x_exists_11-4 x_exists_11-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_10-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_10-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_10-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_10-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_10-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_10-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_10-0 x_exists_10-1 x_exists_10-2 x_exists_10-3 x_exists_10-4 x_exists_10-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_9-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_9-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_9-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_9-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_9-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_9-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_9-0 x_exists_9-1 x_exists_9-2 x_exists_9-3 x_exists_9-4 x_exists_9-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_8-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_8-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_8-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_8-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_8-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_8-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_8-0 x_exists_8-1 x_exists_8-2 x_exists_8-3 x_exists_8-4 x_exists_8-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_7-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_7-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_7-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_7-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_7-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_7-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_7-0 x_exists_7-1 x_exists_7-2 x_exists_7-3 x_exists_7-4 x_exists_7-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_6-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_6-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_6-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_6-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_6-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_6-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_6-0 x_exists_6-1 x_exists_6-2 x_exists_6-3 x_exists_6-4 x_exists_6-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_5-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_5-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_5-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_5-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_5-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_5-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_5-0 x_exists_5-1 x_exists_5-2 x_exists_5-3 x_exists_5-4 x_exists_5-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_4-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_4-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_4-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_4-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_4-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_4-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_4-0 x_exists_4-1 x_exists_4-2 x_exists_4-3 x_exists_4-4 x_exists_4-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_3-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_3-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_3-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_3-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_3-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_3-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_3-0 x_exists_3-1 x_exists_3-2 x_exists_3-3 x_exists_3-4 x_exists_3-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_2-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_2-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_2-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_2-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_2-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_2-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_2-0 x_exists_2-1 x_exists_2-2 x_exists_2-3 x_exists_2-4 x_exists_2-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_1-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_1-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_1-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_1-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_1-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_1-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_1-0 x_exists_1-1 x_exists_1-2 x_exists_1-3 x_exists_1-4 x_exists_1-5 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_0-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_0-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_0-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_0-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_0-4 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_0-5 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_0-0 x_exists_0-1 x_exists_0-2 x_exists_0-3 x_exists_0-4 x_exists_0-5 ) )
+[<-recv] success
+Assert existential properties
+[send->] (assert (=> (not literal_0 ) (and x_exists_0-0 (not x_exists_0-1 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_1 ) (and x_exists_1-0 (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_2 ) (and x_exists_2-2 (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_3 ) (and x_exists_3-1 (not x_exists_3-0 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_4 ) (and x_exists_4-1 (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_5 ) (and x_exists_5-3 (not x_exists_5-4 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_6 ) (and x_exists_6-3 (not x_exists_6-5 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_7 ) (and x_exists_7-3 (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_8 ) (and x_exists_8-4 (not x_exists_8-3 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_9 ) (and x_exists_9-4 (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_10 ) (and x_exists_10-5 (not x_exists_10-3 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_11 ) (and x_exists_11-5 (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_12 ) (and x_exists_12-5 (not false ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_13 ) (and true (not x_exists_13-2 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_14 ) (and true (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_15 ) (and true (not false ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_16 ) (and false (not x_exists_16-0 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_17 ) (and false (not x_exists_17-2 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_18 ) (and false (not x_exists_18-1 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_19 ) (and false (not x_exists_19-3 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_20 ) (and false (not x_exists_20-4 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_21 ) (and false (not x_exists_21-5 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_22 ) (and false (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_23 ) (and false (not false ) ) ) )
+[<-recv] success
+Asserting function domain properties
+[send->] (assert (forall ((y_univ_1-0 Bool ) (y_univ_1-1 Bool ) (y_univ_1-2 Bool ) (y_univ_1-3 Bool ) (y_univ_1-4 Bool ) (y_univ_1-5 Bool ) (y_univ_2-0 Bool ) (y_univ_2-1 Bool ) (y_univ_2-2 Bool ) (y_univ_2-3 Bool ) (y_univ_2-4 Bool ) (y_univ_2-5 Bool ) ) (and (=> (and (domain y_univ_1-0 y_univ_1-1 y_univ_1-2 y_univ_1-3 y_univ_1-4 y_univ_1-5 ) (domain y_univ_2-0 y_univ_2-1 y_univ_2-2 y_univ_2-3 y_univ_2-4 y_univ_2-5 ) ) (and true true true true true true (and (= true Baz-5 ) true ) true ) ) (domain Baz-0 Baz-1 Baz-2 Baz-3 Baz-4 Baz-5 ) ) ) )
+[<-recv] success
+About do check SAT
+[send->] (check-sat )
+[stderr] (smt.propagate-values)
+[stderr] (smt.nnf-cnf)
+[stderr] (smt.reduce-asserted)
+[stderr] (smt.refine-injectivity)
+[stderr] (smt.pattern-inference)
+[stderr] (smt.maximizing-bv-sharing)
+[stderr] (smt.reduce-asserted)
+[stderr] (smt.simplifier-done)
+[stderr] (smt.searching)
+[stderr] (smt.simplifying-clause-set :num-deleted-clauses 0)
+[stderr] is_solved
+[<-recv] sat
+Found Solution
 [==================================================] - 1 / 1                                                                     Success! Compiled 1 module.
