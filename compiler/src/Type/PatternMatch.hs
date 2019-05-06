@@ -123,8 +123,11 @@ type Constraint = Fix (Constraint_ LitPattern)
 deriving instance Show LitPattern
 
 
-newtype Safety = Safety {unSafety :: [(Constraint, R.Region)]}
+newtype Safety = Safety {unSafety :: [(Constraint, R.Region, PatError.Context, [Can.Pattern] )]}
     deriving (Monoid, Semigroup)
+
+getSafetyConstrs :: Safety -> [Constraint]
+getSafetyConstrs (Safety l) = map (\(c, _, _, _) -> c) l
 
 (====) :: (Subsetable a, Subsetable b) => a -> b -> Constraint
 p1 ==== p2 =
@@ -224,7 +227,7 @@ litLovalVars l = []
 typeFreeVars (t :@ e) = List.nub $ e: concatMap typeLocalVars (toList t)
 constrFreeVars (Fix c) = List.nub $ concatMap constrLocalVars ((Fix c) : toList c)
 litFreeVars (Fix l) = List.nub $ concatMap litLocalVars ((Fix l) : toList l)
-schemeFreeVars (Forall v t c s ) = List.nub $ (typeFreeVars t) ++ (constrFreeVars c) ++ (concatMap (constrFreeVars . fst) $ unSafety s)
+schemeFreeVars (Forall v t c s ) = List.nub $ (typeFreeVars t) ++ (constrFreeVars c) ++ (concatMap constrFreeVars   $ getSafetyConstrs $ s)
 
 freshName :: (ConstrainM m) => String -> m String
 freshName s = do
@@ -243,13 +246,13 @@ instantiate (Forall boundVars tipe constr safety) = do
     freshVars <- forM [1 .. length boundVars] $ \ _ -> freshVar
     let subList =  zip boundVars freshVars
     let substFun x = Maybe.fromMaybe x (lookup x subList)
-    return $ (typeSubsts substFun tipe, constrSubsts substFun constr, Safety (map (\(c,r) -> (constrSubsts substFun c, r) ) $ unSafety safety))
+    return $ (typeSubsts substFun tipe, constrSubsts substFun constr, Safety (map (\(c,r, context, pats) -> (constrSubsts substFun c, r, context, pats) ) $ unSafety safety))
 
 
 generalize :: Gamma -> TypeEffect -> Constraint  -> Safety -> EffectScheme
 generalize _Gamma tipe constr safety =
     let
-        allFreeVars = List.nub $ (typeFreeVars tipe) ++ (constrFreeVars constr) ++ (concatMap (constrFreeVars . fst) $ unSafety safety)
+        allFreeVars = List.nub $ (typeFreeVars tipe) ++ (constrFreeVars constr) ++ (concatMap (constrFreeVars ) $ getSafetyConstrs safety)
         gammaFreeVars = List.nub $ concatMap schemeFreeVars (Map.elems _Gamma)
     in
         Forall (allFreeVars List.\\ gammaFreeVars) tipe constr safety
@@ -371,9 +374,28 @@ addEffectVars t = do
 
 
 unifyTypes :: (ConstrainM m) => TypeEffect -> TypeEffect -> m ()
-unifyTypes (_ :@ v1) (_ :@ v2) = do
+unifyTypes (t1 :@ v1) (t2 :@ v2) = do
     desc <- liftIO $ UF.get v1
     liftIO $ UF.union v1 v2 desc
+    case (t1, t2) of
+        ((TypeVar v1), (TypeVar v2)) -> return ()
+        ((Alias t1 t2 t3 t4), _) -> return () --TODO alias unify
+        ((App t1 t2 t3), (App t1' t2' t3')) -> 
+            zipWithM_  unifyTypes t3 t3'
+        ((Fun t1 t2), (Fun t1' t2')) -> do
+            unifyTypes t1 t1'
+            unifyTypes t2 t2' 
+        (EmptyRecord, EmptyRecord) -> return () 
+        ((Record fields), (Record fields')) -> 
+            forM_ (Map.keys fields) $ \key ->
+                unifyTypes (fields Map.! key) (fields' Map.! key) 
+        (Unit, Unit) -> return () 
+        ((Tuple t1 t2 mt3), (Tuple t1' t2' mt3')) -> do
+            unifyTypes t1 t1'
+            unifyTypes t2 t2'
+            case (mt3, mt3') of
+                (Nothing, Nothing) -> return ()
+                (Just t3, Just t3') -> unifyTypes t3 t3'  
     --TODO do we need to unify sub-vars?
 
 
@@ -405,20 +427,20 @@ runCMIO c = do
         result <- maybeResult
         return (result, safety)
 
-tellSafety pathConstr x r = tell $ Safety [(pathConstr ==> x, r)]
+tellSafety pathConstr x r context pats = tell $ Safety [(pathConstr ==> x, r, context, pats)]
 
 --Given a type and an  effect-variable for each expression,
 -- a mapping (Gamma) from free variables to effect schemes,
 --A "path constraint" of truths that must hold for us to reach this point in the program,
 -- and an expression,
---Traverse that expression and generate the constraints that, when solved,
+--Traverse that expression and generate the constraints that, when solved, 
 -- give the possible patterns for each effect variable.
 -- Emits "safety constraints" using the Writer monad
 constrainExpr :: (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Expr ->   m (TypeEffect,  Constraint)
 constrainExpr tyMap _GammaPath (A.At region expr)  =
     case Map.lookup region tyMap of
         Just ty -> do
-            c <- constrainExpr_ expr ty _GammaPath
+            c <- constrainExpr_ expr ty _GammaPath 
             return (ty, c)
         Nothing -> error "Region not in type map"
   where
@@ -428,7 +450,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
     constrainExpr_ (Can.VarLocal name) t (_Gamma, pathConstr) = do
         (tipe, constr, safety) <- instantiate (_Gamma Map.! name)
         unifyTypes t tipe
-        forM (unSafety safety) $ \(c,r) -> tellSafety pathConstr c r
+        forM (unSafety safety) $ \(c,r, context, pats) -> tellSafety pathConstr c r context pats
         return constr
     constrainExpr_ (Can.VarTopLevel expr1 expr2) t _GammaPath = return $ t ==== Top --error "TODO get type from imports"
     constrainExpr_ (Can.VarCtor _ _ ctorName _ _) t _GammaPath =
@@ -445,7 +467,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
         --TODO negate previous branches
         let litBranches = map (\ (Can.CaseBranch pat rhs) -> (pat, canPatToLit pat, rhs) ) branches
         --Emit a safety constraint: must cover all possible inputs by our branch patterns
-        tellSafety pathConstr (inputPatterns << unions (map (\(_,b,_) -> b) litBranches)) region
+        tellSafety pathConstr (inputPatterns << unions (map (\(_,b,_) -> b) litBranches)) region PatError.BadCase (map (\(a,_,_)->a) litBranches)
         (patVars, branchConstrs) <- unzip <$>
             forM litBranches (
                 \(pat, lit, rhs) -> do
@@ -474,7 +496,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
                 lamHelper (argPat:argPats) t@( (Fun dom cod) :@ v3 ) (_Gamma, pathConstr) = do
                     --Emit a safety constraint saying that the argument must match the pattern
                     let litPat = canPatToLit argPat
-                    tellSafety pathConstr (dom << litPat) region
+                    tellSafety pathConstr (dom << litPat) region PatError.BadArg [argPat]
                     --All values of function types must be lambdas, so we have a trivial constraint on v3
                     let lamConstr = (v3 ==== litLambda)
                     --Get the environment to check the body
@@ -523,7 +545,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
         --TODO is this right?
         (letType, letConstr) <- self _GammaPath letExp
         --Safety constraint: must match whatever we are binding
-        tellSafety pathConstr (letType << lit) region
+        tellSafety pathConstr (letType << lit) region PatError.BadCase [pat]
         let envExt = envAfterMatch tyMap (toLit letType) pat
         --TODO extend path cond
         (bodyType, bodyConstr) <- self (Map.union envExt _Gamma, pathConstr) inExp
@@ -579,11 +601,27 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
             --TODO need this?
             (exprConstr, safety)  <- unpackEither $ liftIO $ runCMIO $ constrainDef_  (map fst patTypes) body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
             return (x, wholeType, exprConstr, safety)
+    --We check that each safety constraint in this definition is compatible with the other constraints
+    let safetyList = unSafety safety
+    liftIO $ putStrLn $  "Solving constraints for definition " ++ N.toString  x
+    mConstraintSoln <- solveConstraint (defConstr /\ CAnd (getSafetyConstrs safety))
+    case mConstraintSoln of
+        Right () -> return ()
+        Left _ -> do
+            failures <- forM safetyList $ \(safetyConstr, region, context, pats) -> do
+                soln <- solveConstraint (defConstr /\ safetyConstr) 
+                case soln of
+                    Right _ -> return $ Nothing
+                    Left _ -> return $ Just (region, context, pats) --TODO get unmatched patterns
+            case Maybe.catMaybes failures of
+                [] -> error "Incompatible safety constraint set"
+                l -> forM l $ \(region, context, pats) -> do
+                    throwError $ PatError.Incomplete region context (map PatError.simplify pats )
+            return () 
+            --Iterate through each safety constraint, and see which one is satisfiable
+
     --Now that we have types and constraints for the body, we generalize them over all free variables
     --not  occurring in Gamma, and return an environment mapping the def name to this scheme
-    --Generalize should check that the safety constraints from the body will always hold
-    --If the constraints on the types hold
-    eitherToPatError $ solveConstraint (defConstr /\ CAnd (map fst $ unSafety safety))
     let scheme = generalize (fst _GammaPath) defType defConstr safety
     return $ Map.singleton x scheme
     where

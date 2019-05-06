@@ -8,11 +8,12 @@ Region {_start = Position {_line = 7, _column = 1}, _end = Position {_line = 7, 
 Region {_start = Position {_line = 7, _column = 5}, _end = Position {_line = 7, _column = 6}} : TLambda (TType (Canonical {_package = Name {_author = "author", _project = "project"}, _module = Name {_name = "Main"}}) (Name {_name = "Foo"}) []) (TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) [])
 Region {_start = Position {_line = 7, _column = 5}, _end = Position {_line = 7, _column = 10}} : TType (Canonical {_package = Name {_author = "elm", _project = "core"}, _module = Name {_name = "Basics"}}) (Name {_name = "Int"}) []
 Region {_start = Position {_line = 7, _column = 7}, _end = Position {_line = 7, _column = 10}} : TType (Canonical {_package = Name {_author = "author", _project = "project"}, _module = Name {_name = "Main"}}) (Name {_name = "Foo"}) []
+Solving constraints for definition f
 [send->] (set-option :print-success true )
 [<-recv] success
 [send->] (set-option :produce-models true )
 [<-recv] success
-cInitial: CAnd [CSubset Top Top,CSubset (Var "SetVar_4") (Var "SetVar_0"),CSubset (Var "SetVar_0") (Var "SetVar_4"),CAnd [CImplies (CNot (CSubset (Intersect (Var "SetVar_5") (FunApp "Bar" [])) Bottom)) (CAnd [CSubset (Var "SetVar_0") (Var "SetVar_7"),CSubset (Var "SetVar_7") (Var "SetVar_0")]),CImplies (CNot (CNot (CSubset (Intersect (Var "SetVar_5") (FunApp "Bar" [])) Bottom))) (CAnd [CSubset (Var "SetVar_0") Bottom,CSubset Bottom (Var "SetVar_0")])],CImplies (CSubset Top Top) (CSubset (Var "SetVar_5") (FunApp "Bar" []))]
+cInitial: CAnd [CSubset (Var "SetVar_5") (Var "SetVar_0"),CSubset (Var "SetVar_0") (Var "SetVar_5"),CSubset (Var "SetVar_4") (Var "SetVar_0"),CSubset (Var "SetVar_0") (Var "SetVar_4"),CAnd [CImplies (CNot (CSubset (Intersect (Var "SetVar_5") (FunApp "Bar" [])) Bottom)) (CAnd [CSubset (Var "SetVar_0") (Var "SetVar_7"),CSubset (Var "SetVar_7") (Var "SetVar_0")]),CImplies (CNot (CNot (CSubset (Intersect (Var "SetVar_5") (FunApp "Bar" [])) Bottom))) (CAnd [CSubset (Var "SetVar_0") Bottom,CSubset Bottom (Var "SetVar_0")])],CImplies (CSubset Top Top) (CSubset (Var "SetVar_5") (FunApp "Bar" []))]
 [send->] (set-logic UF )
 [<-recv] success
 [send->] (set-option :smt.mbqi true )
@@ -69,17 +70,21 @@ cInitial: CAnd [CSubset Top Top,CSubset (Var "SetVar_4") (Var "SetVar_0"),CSubse
 [<-recv] success
 [send->] (declare-fun literal_23 () Bool )
 [<-recv] success
-[send->] (assert (and (and (and (and literal_14 literal_4 literal_0 (and (=> (not literal_11 ) (and literal_1 literal_8 ) ) (=> (not (not literal_11 ) ) (and literal_3 literal_16 ) ) ) (=> literal_14 literal_6 ) ) (not literal_15 ) ) (and literal_2 literal_5 literal_7 literal_9 literal_10 literal_12 (not literal_13 ) literal_14 (not literal_15 ) literal_16 literal_17 literal_18 literal_19 literal_20 literal_21 literal_22 literal_23 ) ) (and (=> (and literal_0 literal_5 ) literal_2 ) (=> (and literal_1 literal_9 ) literal_2 ) (=> (and literal_2 literal_14 ) literal_2 ) (=> (and literal_2 literal_15 ) literal_3 ) (=> (and literal_3 literal_17 ) literal_0 ) (=> (and literal_3 literal_19 ) literal_1 ) (=> (and literal_3 literal_22 ) literal_2 ) (=> (and literal_3 literal_23 ) literal_3 ) (=> (and literal_4 literal_2 ) literal_5 ) (=> (and literal_5 literal_14 ) literal_5 ) (=> (and literal_6 literal_12 ) literal_7 ) (=> (and literal_7 literal_14 ) literal_7 ) (=> (and literal_8 literal_2 ) literal_9 ) (=> (and literal_9 literal_14 ) literal_9 ) (=> (and literal_10 literal_14 ) literal_10 ) (=> (and literal_10 literal_15 ) literal_11 ) (=> (and literal_11 literal_22 ) literal_10 ) (=> (and literal_11 literal_23 ) literal_11 ) (=> (and literal_12 literal_14 ) literal_12 ) (=> (and literal_12 literal_15 ) literal_13 ) (=> (and literal_13 literal_22 ) literal_12 ) (=> (and literal_13 literal_23 ) literal_13 ) (=> (and literal_14 literal_14 ) literal_14 ) (=> (and literal_14 literal_15 ) literal_15 ) (=> (and literal_15 literal_22 ) literal_14 ) (=> (and literal_15 literal_23 ) literal_15 ) (=> (and literal_16 literal_0 ) literal_17 ) (=> (and literal_16 literal_1 ) literal_19 ) (=> (and literal_16 literal_2 ) literal_22 ) (=> (and literal_16 literal_3 ) literal_23 ) (=> (and literal_17 literal_4 ) literal_16 ) (=> (and literal_17 literal_5 ) literal_22 ) (=> (and literal_18 literal_6 ) literal_21 ) (=> (and literal_18 literal_7 ) literal_22 ) (=> (and literal_19 literal_8 ) literal_16 ) (=> (and literal_19 literal_9 ) literal_22 ) (=> (and literal_20 literal_10 ) literal_22 ) (=> (and literal_20 literal_11 ) literal_23 ) (=> (and literal_21 literal_12 ) literal_22 ) (=> (and literal_21 literal_13 ) literal_23 ) (=> (and literal_22 literal_14 ) literal_22 ) (=> (and literal_22 literal_15 ) literal_23 ) (=> (and literal_23 literal_16 ) literal_16 ) (=> (and literal_23 literal_17 ) literal_17 ) (=> (and literal_23 literal_18 ) literal_18 ) (=> (and literal_23 literal_19 ) literal_19 ) (=> (and literal_23 literal_20 ) literal_20 ) (=> (and literal_23 literal_21 ) literal_21 ) (=> (and literal_23 literal_22 ) literal_22 ) (=> (and literal_23 literal_23 ) literal_23 ) ) ) )
+[send->] (declare-fun literal_24 () Bool )
 [<-recv] success
-Done asserting formula, 10 base literals, 24 literals total
-Partitioned into 9 subproblems: [[Literal {unLiteral = (Bottom,Var "SetVar_0")},Literal {unLiteral = (Var "SetVar_7",Var "SetVar_0")},Literal {unLiteral = (Bottom,Var "SetVar_7")},Literal {unLiteral = (Var "SetVar_7",Top)},Literal {unLiteral = (Var "SetVar_0",Var "SetVar_7")},Literal {unLiteral = (Var "SetVar_4",Var "SetVar_0")},Literal {unLiteral = (Bottom,Var "SetVar_4")},Literal {unLiteral = (Var "SetVar_4",Top)},Literal {unLiteral = (Var "SetVar_0",Var "SetVar_4")},Literal {unLiteral = (Var "SetVar_0",Bottom)},Literal {unLiteral = (Var "SetVar_0",Top)}],[Literal {unLiteral = (Bottom,Intersect (Var "SetVar_5") (FunApp "Bar" []))},Literal {unLiteral = (Bottom,Var "SetVar_5")},Literal {unLiteral = (Intersect (Var "SetVar_5") (FunApp "Bar" []),Bottom)},Literal {unLiteral = (Intersect (Var "SetVar_5") (FunApp "Bar" []),Top)},Literal {unLiteral = (Var "SetVar_5",Top)},Literal {unLiteral = (Var "SetVar_5",FunApp "Bar" [])}],[Literal {unLiteral = (FunApp "Bar" [],Top)}],[Literal {unLiteral = (FunApp "Bar" [],Bottom)}],[Literal {unLiteral = (Top,Top)}],[Literal {unLiteral = (Top,Bottom)}],[Literal {unLiteral = (Bottom,FunApp "Bar" [])}],[Literal {unLiteral = (Bottom,Top)}],[Literal {unLiteral = (Bottom,Bottom)}]]
+[send->] (declare-fun literal_25 () Bool )
+[<-recv] success
+[send->] (assert (and (and (and (and literal_7 literal_1 literal_5 literal_0 (and (=> (not literal_13 ) (and literal_2 literal_10 ) ) (=> (not (not literal_13 ) ) (and literal_4 literal_18 ) ) ) (=> literal_16 literal_8 ) ) (not literal_17 ) ) (and literal_3 literal_6 literal_9 literal_11 literal_12 literal_14 (not literal_15 ) literal_16 (not literal_17 ) literal_18 literal_19 literal_20 literal_21 literal_22 literal_23 literal_24 literal_25 ) ) (and (=> (and literal_0 literal_6 ) literal_3 ) (=> (and literal_1 literal_9 ) literal_3 ) (=> (and literal_2 literal_11 ) literal_3 ) (=> (and literal_3 literal_16 ) literal_3 ) (=> (and literal_3 literal_17 ) literal_4 ) (=> (and literal_4 literal_19 ) literal_0 ) (=> (and literal_4 literal_20 ) literal_1 ) (=> (and literal_4 literal_21 ) literal_2 ) (=> (and literal_4 literal_24 ) literal_3 ) (=> (and literal_4 literal_25 ) literal_4 ) (=> (and literal_5 literal_3 ) literal_6 ) (=> (and literal_6 literal_16 ) literal_6 ) (=> (and literal_7 literal_3 ) literal_9 ) (=> (and literal_8 literal_14 ) literal_9 ) (=> (and literal_9 literal_16 ) literal_9 ) (=> (and literal_10 literal_3 ) literal_11 ) (=> (and literal_11 literal_16 ) literal_11 ) (=> (and literal_12 literal_16 ) literal_12 ) (=> (and literal_12 literal_17 ) literal_13 ) (=> (and literal_13 literal_24 ) literal_12 ) (=> (and literal_13 literal_25 ) literal_13 ) (=> (and literal_14 literal_16 ) literal_14 ) (=> (and literal_14 literal_17 ) literal_15 ) (=> (and literal_15 literal_24 ) literal_14 ) (=> (and literal_15 literal_25 ) literal_15 ) (=> (and literal_16 literal_16 ) literal_16 ) (=> (and literal_16 literal_17 ) literal_17 ) (=> (and literal_17 literal_24 ) literal_16 ) (=> (and literal_17 literal_25 ) literal_17 ) (=> (and literal_18 literal_0 ) literal_19 ) (=> (and literal_18 literal_1 ) literal_20 ) (=> (and literal_18 literal_2 ) literal_21 ) (=> (and literal_18 literal_3 ) literal_24 ) (=> (and literal_18 literal_4 ) literal_25 ) (=> (and literal_19 literal_5 ) literal_18 ) (=> (and literal_19 literal_6 ) literal_24 ) (=> (and literal_20 literal_7 ) literal_18 ) (=> (and literal_20 literal_8 ) literal_23 ) (=> (and literal_20 literal_9 ) literal_24 ) (=> (and literal_21 literal_10 ) literal_18 ) (=> (and literal_21 literal_11 ) literal_24 ) (=> (and literal_22 literal_12 ) literal_24 ) (=> (and literal_22 literal_13 ) literal_25 ) (=> (and literal_23 literal_14 ) literal_24 ) (=> (and literal_23 literal_15 ) literal_25 ) (=> (and literal_24 literal_16 ) literal_24 ) (=> (and literal_24 literal_17 ) literal_25 ) (=> (and literal_25 literal_18 ) literal_18 ) (=> (and literal_25 literal_19 ) literal_19 ) (=> (and literal_25 literal_20 ) literal_20 ) (=> (and literal_25 literal_21 ) literal_21 ) (=> (and literal_25 literal_22 ) literal_22 ) (=> (and literal_25 literal_23 ) literal_23 ) (=> (and literal_25 literal_24 ) literal_24 ) (=> (and literal_25 literal_25 ) literal_25 ) ) ) )
+[<-recv] success
+Done asserting formula, 12 base literals, 26 literals total
+Partitioned into 8 subproblems: [[Literal {unLiteral = (Bottom,Var "SetVar_0")},Literal {unLiteral = (Var "SetVar_7",Var "SetVar_0")},Literal {unLiteral = (Bottom,Var "SetVar_7")},Literal {unLiteral = (Var "SetVar_7",Top)},Literal {unLiteral = (Var "SetVar_0",Var "SetVar_7")},Literal {unLiteral = (Var "SetVar_5",Var "SetVar_0")},Literal {unLiteral = (Bottom,Intersect (Var "SetVar_5") (FunApp "Bar" []))},Literal {unLiteral = (Bottom,Var "SetVar_5")},Literal {unLiteral = (Intersect (Var "SetVar_5") (FunApp "Bar" []),Bottom)},Literal {unLiteral = (Intersect (Var "SetVar_5") (FunApp "Bar" []),Top)},Literal {unLiteral = (Var "SetVar_5",Top)},Literal {unLiteral = (Var "SetVar_5",FunApp "Bar" [])},Literal {unLiteral = (Var "SetVar_0",Var "SetVar_5")},Literal {unLiteral = (Var "SetVar_4",Var "SetVar_0")},Literal {unLiteral = (Bottom,Var "SetVar_4")},Literal {unLiteral = (Var "SetVar_4",Top)},Literal {unLiteral = (Var "SetVar_0",Var "SetVar_4")},Literal {unLiteral = (Var "SetVar_0",Bottom)},Literal {unLiteral = (Var "SetVar_0",Top)}],[Literal {unLiteral = (FunApp "Bar" [],Top)}],[Literal {unLiteral = (FunApp "Bar" [],Bottom)}],[Literal {unLiteral = (Top,Top)}],[Literal {unLiteral = (Top,Bottom)}],[Literal {unLiteral = (Bottom,FunApp "Bar" [])}],[Literal {unLiteral = (Bottom,Top)}],[Literal {unLiteral = (Bottom,Bottom)}]]
 Done asserting subset properties
 Done asserting transitivity
-Lit Vars: [(Literal {unLiteral = (Var "SetVar_0",Var "SetVar_4")},Atom "literal_0"),(Literal {unLiteral = (Var "SetVar_0",Var "SetVar_7")},Atom "literal_1"),(Literal {unLiteral = (Var "SetVar_0",Top)},Atom "literal_2"),(Literal {unLiteral = (Var "SetVar_0",Bottom)},Atom "literal_3"),(Literal {unLiteral = (Var "SetVar_4",Var "SetVar_0")},Atom "literal_4"),(Literal {unLiteral = (Var "SetVar_4",Top)},Atom "literal_5"),(Literal {unLiteral = (Var "SetVar_5",FunApp "Bar" [])},Atom "literal_6"),(Literal {unLiteral = (Var "SetVar_5",Top)},Atom "literal_7"),(Literal {unLiteral = (Var "SetVar_7",Var "SetVar_0")},Atom "literal_8"),(Literal {unLiteral = (Var "SetVar_7",Top)},Atom "literal_9"),(Literal {unLiteral = (Intersect (Var "SetVar_5") (FunApp "Bar" []),Top)},Atom "literal_10"),(Literal {unLiteral = (Intersect (Var "SetVar_5") (FunApp "Bar" []),Bottom)},Atom "literal_11"),(Literal {unLiteral = (FunApp "Bar" [],Top)},Atom "literal_12"),(Literal {unLiteral = (FunApp "Bar" [],Bottom)},Atom "literal_13"),(Literal {unLiteral = (Top,Top)},Atom "literal_14"),(Literal {unLiteral = (Top,Bottom)},Atom "literal_15"),(Literal {unLiteral = (Bottom,Var "SetVar_0")},Atom "literal_16"),(Literal {unLiteral = (Bottom,Var "SetVar_4")},Atom "literal_17"),(Literal {unLiteral = (Bottom,Var "SetVar_5")},Atom "literal_18"),(Literal {unLiteral = (Bottom,Var "SetVar_7")},Atom "literal_19"),(Literal {unLiteral = (Bottom,Intersect (Var "SetVar_5") (FunApp "Bar" []))},Atom "literal_20"),(Literal {unLiteral = (Bottom,FunApp "Bar" [])},Atom "literal_21"),(Literal {unLiteral = (Bottom,Top)},Atom "literal_22"),(Literal {unLiteral = (Bottom,Bottom)},Atom "literal_23")]
-Pred numbers: fromList [(PVar "SetVar_0",0),(PVar "SetVar_4",1),(PVar "SetVar_5",3),(PVar "SetVar_7",2),(PFunApp "Bar" [],4)]
+Lit Vars: [(Literal {unLiteral = (Var "SetVar_0",Var "SetVar_4")},Atom "literal_0"),(Literal {unLiteral = (Var "SetVar_0",Var "SetVar_5")},Atom "literal_1"),(Literal {unLiteral = (Var "SetVar_0",Var "SetVar_7")},Atom "literal_2"),(Literal {unLiteral = (Var "SetVar_0",Top)},Atom "literal_3"),(Literal {unLiteral = (Var "SetVar_0",Bottom)},Atom "literal_4"),(Literal {unLiteral = (Var "SetVar_4",Var "SetVar_0")},Atom "literal_5"),(Literal {unLiteral = (Var "SetVar_4",Top)},Atom "literal_6"),(Literal {unLiteral = (Var "SetVar_5",Var "SetVar_0")},Atom "literal_7"),(Literal {unLiteral = (Var "SetVar_5",FunApp "Bar" [])},Atom "literal_8"),(Literal {unLiteral = (Var "SetVar_5",Top)},Atom "literal_9"),(Literal {unLiteral = (Var "SetVar_7",Var "SetVar_0")},Atom "literal_10"),(Literal {unLiteral = (Var "SetVar_7",Top)},Atom "literal_11"),(Literal {unLiteral = (Intersect (Var "SetVar_5") (FunApp "Bar" []),Top)},Atom "literal_12"),(Literal {unLiteral = (Intersect (Var "SetVar_5") (FunApp "Bar" []),Bottom)},Atom "literal_13"),(Literal {unLiteral = (FunApp "Bar" [],Top)},Atom "literal_14"),(Literal {unLiteral = (FunApp "Bar" [],Bottom)},Atom "literal_15"),(Literal {unLiteral = (Top,Top)},Atom "literal_16"),(Literal {unLiteral = (Top,Bottom)},Atom "literal_17"),(Literal {unLiteral = (Bottom,Var "SetVar_0")},Atom "literal_18"),(Literal {unLiteral = (Bottom,Var "SetVar_4")},Atom "literal_19"),(Literal {unLiteral = (Bottom,Var "SetVar_5")},Atom "literal_20"),(Literal {unLiteral = (Bottom,Var "SetVar_7")},Atom "literal_21"),(Literal {unLiteral = (Bottom,Intersect (Var "SetVar_5") (FunApp "Bar" []))},Atom "literal_22"),(Literal {unLiteral = (Bottom,FunApp "Bar" [])},Atom "literal_23"),(Literal {unLiteral = (Bottom,Top)},Atom "literal_24"),(Literal {unLiteral = (Bottom,Bottom)},Atom "literal_25")]
+Pred numbers: fromList [(PVar "SetVar_0",0),(PVar "SetVar_4",1),(PVar "SetVar_5",2),(PVar "SetVar_7",3),(PFunApp "Bar" [],4)]
 In theory solver, numBits: 5
 Declaring domain
-[send->] (define-fun domain ((z_boolDomain-0 Bool ) (z_boolDomain-1 Bool ) (z_boolDomain-2 Bool ) (z_boolDomain-3 Bool ) (z_boolDomain-4 Bool ) ) Bool (and true true true true (not false ) true true (= (and z_boolDomain-3 z_boolDomain-4 ) (and z_boolDomain-3 z_boolDomain-4 ) ) (=> literal_0 (=> z_boolDomain-0 z_boolDomain-1 ) ) (=> literal_1 (=> z_boolDomain-0 z_boolDomain-2 ) ) (=> literal_2 (=> z_boolDomain-0 true ) ) (=> literal_3 (=> z_boolDomain-0 false ) ) (=> literal_4 (=> z_boolDomain-1 z_boolDomain-0 ) ) (=> literal_5 (=> z_boolDomain-1 true ) ) (=> literal_6 (=> z_boolDomain-3 z_boolDomain-4 ) ) (=> literal_7 (=> z_boolDomain-3 true ) ) (=> literal_8 (=> z_boolDomain-2 z_boolDomain-0 ) ) (=> literal_9 (=> z_boolDomain-2 true ) ) (=> literal_10 (=> (and z_boolDomain-3 z_boolDomain-4 ) true ) ) (=> literal_11 (=> (and z_boolDomain-3 z_boolDomain-4 ) false ) ) (=> literal_12 (=> z_boolDomain-4 true ) ) (=> literal_13 (=> z_boolDomain-4 false ) ) (=> literal_14 (=> true true ) ) (=> literal_15 (=> true false ) ) (=> literal_16 (=> false z_boolDomain-0 ) ) (=> literal_17 (=> false z_boolDomain-1 ) ) (=> literal_18 (=> false z_boolDomain-3 ) ) (=> literal_19 (=> false z_boolDomain-2 ) ) (=> literal_20 (=> false (and z_boolDomain-3 z_boolDomain-4 ) ) ) (=> literal_21 (=> false z_boolDomain-4 ) ) (=> literal_22 (=> false true ) ) (=> literal_23 (=> false false ) ) ) )
+[send->] (define-fun domain ((z_boolDomain-0 Bool ) (z_boolDomain-1 Bool ) (z_boolDomain-2 Bool ) (z_boolDomain-3 Bool ) (z_boolDomain-4 Bool ) ) Bool (and true true true true true (not false ) true (= (and z_boolDomain-2 z_boolDomain-4 ) (and z_boolDomain-2 z_boolDomain-4 ) ) (=> literal_0 (=> z_boolDomain-0 z_boolDomain-1 ) ) (=> literal_1 (=> z_boolDomain-0 z_boolDomain-2 ) ) (=> literal_2 (=> z_boolDomain-0 z_boolDomain-3 ) ) (=> literal_3 (=> z_boolDomain-0 true ) ) (=> literal_4 (=> z_boolDomain-0 false ) ) (=> literal_5 (=> z_boolDomain-1 z_boolDomain-0 ) ) (=> literal_6 (=> z_boolDomain-1 true ) ) (=> literal_7 (=> z_boolDomain-2 z_boolDomain-0 ) ) (=> literal_8 (=> z_boolDomain-2 z_boolDomain-4 ) ) (=> literal_9 (=> z_boolDomain-2 true ) ) (=> literal_10 (=> z_boolDomain-3 z_boolDomain-0 ) ) (=> literal_11 (=> z_boolDomain-3 true ) ) (=> literal_12 (=> (and z_boolDomain-2 z_boolDomain-4 ) true ) ) (=> literal_13 (=> (and z_boolDomain-2 z_boolDomain-4 ) false ) ) (=> literal_14 (=> z_boolDomain-4 true ) ) (=> literal_15 (=> z_boolDomain-4 false ) ) (=> literal_16 (=> true true ) ) (=> literal_17 (=> true false ) ) (=> literal_18 (=> false z_boolDomain-0 ) ) (=> literal_19 (=> false z_boolDomain-1 ) ) (=> literal_20 (=> false z_boolDomain-2 ) ) (=> literal_21 (=> false z_boolDomain-3 ) ) (=> literal_22 (=> false (and z_boolDomain-2 z_boolDomain-4 ) ) ) (=> literal_23 (=> false z_boolDomain-4 ) ) (=> literal_24 (=> false true ) ) (=> literal_25 (=> false false ) ) ) )
 [<-recv] success
 Declaring constructors
 [send->] (declare-fun Bar-0 () Bool )
@@ -93,6 +98,30 @@ Declaring constructors
 [send->] (define-fun Bar-4 () Bool true )
 [<-recv] success
 Declaring existentials
+[send->] (declare-fun x_exists_25-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_25-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_25-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_25-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_25-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_25-0 x_exists_25-1 x_exists_25-2 x_exists_25-3 x_exists_25-4 ) )
+[<-recv] success
+[send->] (declare-fun x_exists_24-0 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_24-1 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_24-2 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_24-3 () Bool )
+[<-recv] success
+[send->] (declare-fun x_exists_24-4 () Bool )
+[<-recv] success
+[send->] (assert (domain x_exists_24-0 x_exists_24-1 x_exists_24-2 x_exists_24-3 x_exists_24-4 ) )
+[<-recv] success
 [send->] (declare-fun x_exists_23-0 () Bool )
 [<-recv] success
 [send->] (declare-fun x_exists_23-1 () Bool )
@@ -386,49 +415,53 @@ Assert existential properties
 [<-recv] success
 [send->] (assert (=> (not literal_1 ) (and x_exists_1-0 (not x_exists_1-2 ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_2 ) (and x_exists_2-0 (not true ) ) ) )
+[send->] (assert (=> (not literal_2 ) (and x_exists_2-0 (not x_exists_2-3 ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_3 ) (and x_exists_3-0 (not false ) ) ) )
+[send->] (assert (=> (not literal_3 ) (and x_exists_3-0 (not true ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_4 ) (and x_exists_4-1 (not x_exists_4-0 ) ) ) )
+[send->] (assert (=> (not literal_4 ) (and x_exists_4-0 (not false ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_5 ) (and x_exists_5-1 (not true ) ) ) )
+[send->] (assert (=> (not literal_5 ) (and x_exists_5-1 (not x_exists_5-0 ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_6 ) (and x_exists_6-3 (not x_exists_6-4 ) ) ) )
+[send->] (assert (=> (not literal_6 ) (and x_exists_6-1 (not true ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_7 ) (and x_exists_7-3 (not true ) ) ) )
+[send->] (assert (=> (not literal_7 ) (and x_exists_7-2 (not x_exists_7-0 ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_8 ) (and x_exists_8-2 (not x_exists_8-0 ) ) ) )
+[send->] (assert (=> (not literal_8 ) (and x_exists_8-2 (not x_exists_8-4 ) ) ) )
 [<-recv] success
 [send->] (assert (=> (not literal_9 ) (and x_exists_9-2 (not true ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_10 ) (and (and x_exists_10-3 x_exists_10-4 ) (not true ) ) ) )
+[send->] (assert (=> (not literal_10 ) (and x_exists_10-3 (not x_exists_10-0 ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_11 ) (and (and x_exists_11-3 x_exists_11-4 ) (not false ) ) ) )
+[send->] (assert (=> (not literal_11 ) (and x_exists_11-3 (not true ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_12 ) (and x_exists_12-4 (not true ) ) ) )
+[send->] (assert (=> (not literal_12 ) (and (and x_exists_12-2 x_exists_12-4 ) (not true ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_13 ) (and x_exists_13-4 (not false ) ) ) )
+[send->] (assert (=> (not literal_13 ) (and (and x_exists_13-2 x_exists_13-4 ) (not false ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_14 ) (and true (not true ) ) ) )
+[send->] (assert (=> (not literal_14 ) (and x_exists_14-4 (not true ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_15 ) (and true (not false ) ) ) )
+[send->] (assert (=> (not literal_15 ) (and x_exists_15-4 (not false ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_16 ) (and false (not x_exists_16-0 ) ) ) )
+[send->] (assert (=> (not literal_16 ) (and true (not true ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_17 ) (and false (not x_exists_17-1 ) ) ) )
+[send->] (assert (=> (not literal_17 ) (and true (not false ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_18 ) (and false (not x_exists_18-3 ) ) ) )
+[send->] (assert (=> (not literal_18 ) (and false (not x_exists_18-0 ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_19 ) (and false (not x_exists_19-2 ) ) ) )
+[send->] (assert (=> (not literal_19 ) (and false (not x_exists_19-1 ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_20 ) (and false (not (and x_exists_20-3 x_exists_20-4 ) ) ) ) )
+[send->] (assert (=> (not literal_20 ) (and false (not x_exists_20-2 ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_21 ) (and false (not x_exists_21-4 ) ) ) )
+[send->] (assert (=> (not literal_21 ) (and false (not x_exists_21-3 ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_22 ) (and false (not true ) ) ) )
+[send->] (assert (=> (not literal_22 ) (and false (not (and x_exists_22-2 x_exists_22-4 ) ) ) ) )
 [<-recv] success
-[send->] (assert (=> (not literal_23 ) (and false (not false ) ) ) )
+[send->] (assert (=> (not literal_23 ) (and false (not x_exists_23-4 ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_24 ) (and false (not true ) ) ) )
+[<-recv] success
+[send->] (assert (=> (not literal_25 ) (and false (not false ) ) ) )
 [<-recv] success
 Asserting function domain properties
 [send->] (assert (forall ((y_univ_1-0 Bool ) (y_univ_1-1 Bool ) (y_univ_1-2 Bool ) (y_univ_1-3 Bool ) (y_univ_1-4 Bool ) (y_univ_2-0 Bool ) (y_univ_2-1 Bool ) (y_univ_2-2 Bool ) (y_univ_2-3 Bool ) (y_univ_2-4 Bool ) ) (and (=> (and (domain y_univ_1-0 y_univ_1-1 y_univ_1-2 y_univ_1-3 y_univ_1-4 ) (domain y_univ_2-0 y_univ_2-1 y_univ_2-2 y_univ_2-3 y_univ_2-4 ) ) (and true true true true true true (and (= true Bar-4 ) true ) true ) ) (domain Bar-0 Bar-1 Bar-2 Bar-3 Bar-4 ) ) ) )
@@ -448,6 +481,7 @@ About do check SAT
 [stderr] is_solved
 [<-recv] sat
 Found Solution
+Solving constraints for definition g
 [send->] (set-option :print-success true )
 [<-recv] success
 [send->] (set-option :produce-models true )
