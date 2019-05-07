@@ -61,6 +61,17 @@ import qualified SetConstraints.Solve as SC
 import Data.Index (ZeroBased(..)) 
 import qualified AST.Utils.Shader 
 
+import qualified Debug.Trace as Trace
+
+{-# INLINE trace #-}
+-- trace = Trace.trace
+trace _ x = x 
+
+{-# INLINE doLog #-}
+-- doLog s = putStrLn s 
+doLog s = return ()
+
+
 type Variable = UF.Point String
 
 newtype Arity = Arity {getArity :: Int} deriving (Show)
@@ -128,11 +139,11 @@ pattern Union x y = Fix (Union_ x y)
 pattern Intersect x y = Fix (Intersect_ x y)
 pattern Neg x = Fix (Neg_ x)
 
-data Constraint_ pat self =
+data Constraint_ self =
     CAnd_ [self]
     | COr_ [self]
     | CImplies_ self self
-    | CSubset_ pat pat
+    | CSubset_ LitPattern LitPattern
     | CTrue_
     | CNot_ self
     deriving (Functor, Traversable, Foldable, Show)
@@ -145,7 +156,7 @@ pattern CTrue = Fix CTrue_
 pattern CNot x = Fix (CNot_ x)
 
 type LitPattern = Fix LitPattern_ 
-type Constraint = Fix (Constraint_ LitPattern)
+type Constraint = Fix Constraint_
 
 instance (Show (f (Fix f))) => (Show (Fix f))
   where
@@ -230,29 +241,29 @@ monoschemeVar tipe = Forall [] tipe CTrue
 traverseTE :: (TypeEffect -> TypeEffect) -> TypeEffect -> TypeEffect
 traverseTE f (t :@ e) = f ((f <$>  t) :@ e)
 
-oneTypeSubst :: (Variable -> Variable) -> TypeEffect -> TypeEffect
-oneTypeSubst sub (t :@ e) = t :@ (sub e)
-
-oneConstrSubst :: (Variable -> Variable) -> Constraint -> Constraint
-oneConstrSubst sub (CSubset p1 p2) = CSubset (litSubsts sub p1) (litSubsts sub p2)
-oneConstrSubst sub c = c
-
-oneLitSubst :: (Variable -> Variable) -> LitPattern -> LitPattern
-oneLitSubst sub (SetVar v) = SetVar $ sub v
-oneLitSub sub l = l
-
 typeSubsts :: (Variable -> Variable) -> TypeEffect -> TypeEffect
-typeSubsts sub (t :@ e) = oneTypeSubst sub ((oneTypeSubst sub <$> t) :@ e)
+typeSubsts sub (t :@ e) = (typeSubsts sub <$> t) :@ (sub e)
 
 constrSubsts :: (Variable -> Variable) -> Constraint -> Constraint
-constrSubsts sub (Fix c) =  oneConstrSubst sub (Fix $ (oneConstrSubst sub <$> c))
+constrSubsts sub c@(CSubset p1 p2) = trace ("Subbing in subset " ++ show c) $ CSubset (litSubsts sub p1) (litSubsts sub p2)
+constrSubsts sub (Fix c) = trace ("Subbing in else " ++ show c) $  Fix (constrSubsts sub <$> c)
 
 litSubsts :: (Variable -> Variable) -> LitPattern -> LitPattern
-litSubsts sub (Fix l) = oneLitSubst sub (Fix $ (oneLitSubst sub <$> l))
+litSubsts sub l@(SetVar v) = trace ("Subbing in lit var " ++ show l) $  SetVar $ sub v 
+litSubsts sub (Fix l) = trace ("Subbing in lit else " ++ show l) $  Fix (litSubsts sub <$> l)
 
-typeLocalVars (t :@ e) = [e]
+-- typeSubsts :: (Variable -> Variable) -> TypeEffect -> TypeEffect
+-- typeSubsts sub (t :@ e) = oneTypeSubst sub ((oneTypeSubst sub <$> t) :@ e)
+
+-- constrSubsts :: (Variable -> Variable) -> Constraint -> Constraint
+-- constrSubsts sub (Fix c) =  oneConstrSubst sub (Fix $ (oneConstrSubst sub <$> c))
+
+-- litSubsts :: (Variable -> Variable) -> LitPattern -> LitPattern
+-- litSubsts sub (Fix l) = oneLitSubst sub (Fix $ (oneLitSubst sub <$> l)) 
+
+typeLocalVars (t :@ e) = [e] 
 constrLocalVars (CSubset p1 p2) = (litFreeVars p1) ++ (litFreeVars p2)
-constrLocalVars c = []
+constrLocalVars c = [] 
 litLocalVars (SetVar v) = [v]
 litLocalVars l = []
 
@@ -281,12 +292,16 @@ instantiate (Forall boundVars tipe constr ) = do
     case subList of
         [] -> return (tipe, constr)
         _ -> do
-            liftIO $ putStrLn $ "Instantiating with SubList" ++ (show subList)
+            liftIO $ doLog $ "Instantiating with SubList" ++ (show subList)
             let substFun x = unsafePerformIO $ do
                  equivs <- filterM (UF.equivalent x . fst ) subList
                  case equivs of
-                    [] -> return x
-                    (_,z):[] -> return z
+                    [] -> do
+                        doLog $ "Didn't find variable " ++ (show x) ++ " in list " ++ ( show subList)
+                        return x
+                    (_,z):[] -> do
+                        doLog $ "Replacing " ++ (show x) ++ " with " ++ (show z)
+                        return z
                     _ -> error "Too many matching vars in instantiate"
             return $ (typeSubsts substFun tipe, constrSubsts substFun constr)
 
@@ -488,7 +503,7 @@ tellSafety pathConstr x r context pats = tell $ Safety [(pathConstr ==> x, r, co
 -- Emits "safety constraints" using the Writer monad
 constrainExpr :: (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Expr ->   m (TypeEffect,  Constraint)
 constrainExpr tyMap _GammaPath (A.At region expr)  = do
-    liftIO $ putStrLn ("Constraining exprssion " ++ show expr)
+    liftIO $ doLog ("Constraining exprssion " ++ show expr)
     case Map.lookup region tyMap of
         Just ty -> do
             c <- constrainExpr_ expr ty _GammaPath 
@@ -501,7 +516,8 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
     constrainExpr_ (Can.VarLocal name) t (_Gamma, pathConstr) = do
         let sigma = (_Gamma Map.! name)
         (tipe, constr) <- instantiate sigma 
-        liftIO $ putStrLn $ "Instantiating " ++ (show sigma) ++ " into " ++ (show (tipe, constr)) ++ " for var " ++ (N.toString name)
+        liftIO $ doLog $ "Instantiating " ++ (show sigma) ++ " into " ++ (show (tipe, constr)) ++ " for var " ++ (N.toString name)
+        liftIO $ doLog $ "Unifying types" ++ (show t) ++ "\n  and " ++ show tipe 
         unifyTypes t tipe
         return constr
     constrainExpr_ (Can.VarTopLevel _ name) t (_Gamma, pathConstr) = --TODO what about other modules?
@@ -510,7 +526,8 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
             Just sigma -> do
                 --TODO reduce duplication
                 (tipe, constr) <- instantiate sigma 
-                liftIO $ putStrLn $ "Instantiating " ++ (show sigma) ++ " into " ++ (show (tipe, constr)) ++ " for var " ++ (N.toString name)
+                liftIO $ doLog $ "Instantiating " ++ (show sigma) ++ " into " ++ (show (tipe, constr)) ++ " for var " ++ (N.toString name)
+                liftIO $ doLog $ "Unifying types" ++ (show t) ++ "\n  and " ++ show tipe
                 unifyTypes t tipe
                 return constr
     constrainExpr_ (Can.VarCtor _ _ ctorName _ _) t _GammaPath =
@@ -570,7 +587,9 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
     constrainExpr_ (Can.Call fun args) retEffect _GammaPath@(_Gamma, pathConstr) = do
          (funTy, funConstr) <- self _GammaPath fun
          (argTEs, argConstrs) <- unzip <$> mapM (self _GammaPath) args
-         argHelper funTy argTEs ( funConstr /\ CAnd argConstrs)
+         ret <- argHelper funTy argTEs ( funConstr /\ CAnd argConstrs)
+         liftIO $ doLog ("Function call " ++ show fun ++ "\n    generates constr " ++ show ret)
+         return ret
             where
                 --Loop to compute the return type
                 --At each application, instantiate the function's argument type to be the type of the given argument
@@ -578,8 +597,9 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
                 argHelper funEffect [] accum = do
                     unifyTypes funEffect  retEffect
                     return accum
-                argHelper (Fun (tdom :@ edom) cod :@ efun) (targ :@ earg : rest) accum = do
-                    tellSafety pathConstr (earg << edom) region PatError.BadArg [] --TODO something sensible for pat list here 
+                argHelper (Fun dom cod :@ _) (argTy : rest) accum = do
+                    liftIO $ doLog $ "Constraining that argTy " ++ (show argTy) ++ ("Smaller than " ++ show dom)
+                    tellSafety pathConstr (argTy << dom) region PatError.BadArg [] --TODO something sensible for pat list here 
                     argHelper cod rest ( accum )
     constrainExpr_ (Can.If conds elseExpr) t _GammaPath = do
         (elseType, elseCond) <- self _GammaPath elseExpr
@@ -670,8 +690,8 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
             return (x, wholeType, exprConstr, safety)
     --We check that each safety constraint in this definition is compatible with the other constraints
     let safetyList = unSafety safety
-    liftIO $ putStrLn $  "Solving constraints for definition " ++ N.toString  x
-    liftIO $ putStrLn $ "Got safety constraints " ++ (show $ getSafetyConstrs safety)
+    liftIO $ doLog $  "Solving constraints for definition " ++ N.toString  x
+    liftIO $ doLog $ "Got safety constraints " ++ (show $ getSafetyConstrs safety)
     mConstraintSoln <- solveConstraint (defConstr /\ CAnd (getSafetyConstrs safety))
     case mConstraintSoln of
         Right () -> return ()
@@ -691,6 +711,7 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
     --Now that we have types and constraints for the body, we generalize them over all free variables
     --not  occurring in Gamma, and return an environment mapping the def name to this scheme
     scheme <- generalize (fst _GammaPath) defType defConstr safety
+    liftIO $ doLog $ "Generalized type for " ++ N.toString x ++ " is " ++ (show scheme)
     return $ Map.singleton x scheme
     where
         constrainDef_  (argPat : argList) body ((Fun dom cod) :@ vFun) _Gamma =
