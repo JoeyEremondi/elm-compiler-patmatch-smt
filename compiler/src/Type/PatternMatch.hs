@@ -98,9 +98,11 @@ data TypeEffect_ typeEffect =
     deriving (Functor, Traversable, Foldable, Show)
 
 instance Show Variable where
-    show v = unsafePerformIO $ UF.get v 
+    show v = unsafePerformIO $ do
+        v' <- UF.repr v
+        UF.get v' 
 
-newtype Fix f = Fix {unfix :: f (Fix f)}
+newtype Fix f = Fix (f (Fix f))
 
 infix 9 :@
 data TypeEffect =  (TypeEffect_ TypeEffect) :@ Variable
@@ -145,8 +147,11 @@ pattern CNot x = Fix (CNot_ x)
 type LitPattern = Fix LitPattern_ 
 type Constraint = Fix (Constraint_ LitPattern)
 
-deriving instance Show LitPattern
-deriving instance Show Constraint
+instance (Show (f (Fix f))) => (Show (Fix f))
+  where
+    show (Fix x) = "(" ++ show x ++ ")"
+-- deriving instance (Show a) => Show (LitPattern_ a )
+-- deriving instance (Show a) => Show (Constraint_ a)
 
 
 newtype Safety = Safety {unSafety :: [(Constraint, R.Region, PatError.Context, [Can.Pattern] )]}
@@ -219,11 +224,11 @@ monoschemeVar tipe = Forall [] tipe CTrue
 
 
 
-freeConstraintVars :: TypeEffect -> [Variable]
-freeConstraintVars ty = [] --TODO implement
+-- freeConstraintVars :: TypeEffect -> [Variable]
+-- freeConstraintVars ty = [] --TODO implement
 
 traverseTE :: (TypeEffect -> TypeEffect) -> TypeEffect -> TypeEffect
-traverseTE f (t :@ e) = f ((f <$> t) :@ e)
+traverseTE f (t :@ e) = f ((f <$>  t) :@ e)
 
 oneTypeSubst :: (Variable -> Variable) -> TypeEffect -> TypeEffect
 oneTypeSubst sub (t :@ e) = t :@ (sub e)
@@ -251,10 +256,10 @@ constrLocalVars c = []
 litLocalVars (SetVar v) = [v]
 litLocalVars l = []
 
-typeFreeVars (t :@ e) = List.nub $ e: concatMap typeLocalVars (toList t)
-constrFreeVars (Fix c) = List.nub $ concatMap constrLocalVars ((Fix c) : toList c)
-litFreeVars (Fix l) = List.nub $ concatMap litLocalVars ((Fix l) : toList l)
-schemeFreeVars (Forall v t c  ) = List.nub $ (typeFreeVars t) ++ (constrFreeVars c) 
+typeFreeVars (t :@ e) =  e: concatMap typeLocalVars (toList t)
+constrFreeVars (Fix c) =  concatMap constrLocalVars ((Fix c) : toList c)
+litFreeVars (Fix l) =  concatMap litLocalVars ((Fix l) : toList l)
+-- schemeFreeVars (Forall v t c  ) =  (typeFreeVars t) ++ (constrFreeVars c) 
 
 freshName :: (ConstrainM m) => String -> m String
 freshName s = do
@@ -268,24 +273,36 @@ freshVar :: (ConstrainM m) => m Variable
 freshVar = do
     desc <- freshName "SetVar"
     liftIO $ UF.fresh desc 
-
+ 
 instantiate :: (ConstrainM m) => EffectScheme -> m (TypeEffect, Constraint)
 instantiate (Forall boundVars tipe constr ) = do
     freshVars <- forM [1 .. length boundVars] $ \ _ -> freshVar
     let subList =  zip boundVars freshVars
-    liftIO $ putStrLn $ "Instantiating with SubList" ++ (show subList)
-    let substFun x = Maybe.fromMaybe x (lookup x subList)
-    return $ (typeSubsts substFun tipe, constrSubsts substFun constr)
+    case subList of
+        [] -> return (tipe, constr)
+        _ -> do
+            liftIO $ putStrLn $ "Instantiating with SubList" ++ (show subList)
+            let substFun x = unsafePerformIO $ do
+                 equivs <- filterM (UF.equivalent x . fst ) subList
+                 case equivs of
+                    [] -> return x
+                    (_,z):[] -> return z
+                    _ -> error "Too many matching vars in instantiate"
+            return $ (typeSubsts substFun tipe, constrSubsts substFun constr)
 
 
-generalize :: Gamma -> TypeEffect -> Constraint  -> Safety -> EffectScheme
-generalize _Gamma tipe constr safety =
-    let
-        allFreeVars = List.nub $ (typeFreeVars tipe) ++ (constrFreeVars constr) ++ (concatMap (constrFreeVars ) $ getSafetyConstrs safety)
-        gammaFreeVars = List.nub $ concatMap schemeFreeVars (Map.elems _Gamma)
-        safetyConstr = CAnd $ getSafetyConstrs safety
-    in
-        Forall (allFreeVars List.\\ gammaFreeVars) tipe (constr /\ safetyConstr)
+generalize :: (ConstrainM m) => Gamma -> TypeEffect -> Constraint  -> Safety -> m EffectScheme
+generalize _Gamma tipe constr safety = do
+    let allFreeVars_dupes = (typeFreeVars tipe) ++ (constrFreeVars constr) ++ (concatMap (constrFreeVars ) $ getSafetyConstrs safety)
+    allFreeVars <- liftIO $ List.nub <$> mapM UF.repr allFreeVars_dupes
+    let schemeVars (Forall bnd (t :@ v1) sconstr) = liftIO $ do
+            let vrest = constrFreeVars sconstr
+            reprs <- mapM UF.repr (v1 : vrest)
+            boundReprs <- mapM UF.repr bnd
+            return $ reprs List.\\ boundReprs
+    gammaFreeVars <- (List.nub . concat) <$> mapM schemeVars (Map.elems _Gamma)
+    let safetyConstr = CAnd $ getSafetyConstrs safety
+    return $  Forall (allFreeVars List.\\ gammaFreeVars) tipe (constr /\ safetyConstr)
 
 
 toSC :: (ConstrainM m) => Constraint -> m SC.CExpr
@@ -305,7 +322,8 @@ toSCLit l = do
     let simpleReturn x = return (\ f -> f x )
     case l of 
         SetVar uf -> do
-            varName <- liftIO $ UF.get uf
+            ufRepr <- liftIO $ UF.repr uf
+            varName <- liftIO $ UF.get $ ufRepr
             simpleReturn $ SC.Var varName
         --Our theory doesn't support projections as expressions 
         --So we generate a fresh variable and constrain that it must contain exactly the projection
@@ -672,7 +690,7 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
 
     --Now that we have types and constraints for the body, we generalize them over all free variables
     --not  occurring in Gamma, and return an environment mapping the def name to this scheme
-    let scheme = generalize (fst _GammaPath) defType defConstr safety
+    scheme <- generalize (fst _GammaPath) defType defConstr safety
     return $ Map.singleton x scheme
     where
         constrainDef_  (argPat : argList) body ((Fun dom cod) :@ vFun) _Gamma =

@@ -9,6 +9,7 @@ module Type.UnionFind
   , get
   , set
   , modify
+  , repr
   )
   where
 
