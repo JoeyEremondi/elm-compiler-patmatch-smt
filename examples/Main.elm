@@ -1,7 +1,13 @@
 type Foo = Bar | Baz
 
-f : Foo -> Int
-f x = case x of
+fooFun : Foo -> Int
+fooFun x = case x of
   Bar -> 0
+  Baz -> 1
 
-g = f Baz
+fooFunApp = fooFun Baz
+
+myMap : (a -> b) -> List a -> List b
+myMap f l = case l of
+  [] -> []
+  (h :: t) -> (f h) :: (myMap f t) 

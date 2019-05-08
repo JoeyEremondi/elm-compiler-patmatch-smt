@@ -98,7 +98,7 @@ runTypeInference localizer canonical =
     result <- Type.run c
     case result of
       Right annotations -> do 
-          printAllTypes
+          -- printAllTypes
           return $ Result.ok annotations
 
       Left errors ->

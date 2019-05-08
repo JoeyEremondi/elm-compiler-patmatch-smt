@@ -1,0 +1,11 @@
+(CAnd_ [
+    (CSubset_ (SetVar_21) (Union_ (Ctor_ "--Cons" [(Top_),(Top_)]) (Ctor_ "--Null" []))),
+    (CEqual_ (SetVar_19) (Union_ (SetVar_61) (SetVar_60))),
+    (CImplies_ (CSubset_ (Intersect_ (SetVar_21) (Ctor_ "--Null" [])) (Bottom_)) (CSubset_ (SetVar_60) (Bottom_))),
+    (CImplies_ (CNot_ (CSubset_ (Intersect_ (SetVar_21) (Ctor_ "--Null" [])) (Bottom_))) (CEqual_ (SetVar_60) (SetVar_24))),
+    (CEqual_ (SetVar_24) (Ctor_ "--Null" [])),
+    (CImplies_ (CSubset_ (Intersect_ (SetVar_21) (Ctor_ "--Cons" [(Top_),(Top_)])) (Bottom_)) (CSubset_ (SetVar_61) (Bottom_))),
+    (CImplies_ (CNot_ (CSubset_ (Intersect_ (SetVar_21) (Ctor_ "--Cons" [(Top_),(Top_)])) (Bottom_))) (CEqual_ (SetVar_61) (SetVar_29))),
+    (CEqual_ (SetVar_29) (Ctor_ "--Cons" [(SetVar_31),(SetVar_19)])),
+    (CEqual_ (SetVar_34) (Proj_ "--Cons" (Arity {getArity = 2}) 1 (SetVar_21))),
+    (CEqual_ (SetVar_50) (Proj_ "--Cons" (Arity {getArity = 2}) 2 (SetVar_21)))])

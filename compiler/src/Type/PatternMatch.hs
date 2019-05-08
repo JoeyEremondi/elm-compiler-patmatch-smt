@@ -62,14 +62,16 @@ import Data.Index (ZeroBased(..))
 import qualified AST.Utils.Shader 
 
 import qualified Debug.Trace as Trace
+ 
+verbose = True
 
 {-# INLINE trace #-}
 -- trace = Trace.trace
-trace _ x = x 
+trace s x = if verbose then (Trace.trace s x) else x 
 
 {-# INLINE doLog #-}
--- doLog s = putStrLn s 
-doLog s = return ()
+doLog s = when verbose $ putStrLn s 
+-- doLog s = return ()
 
 
 type Variable = UF.Point String
@@ -144,6 +146,7 @@ data Constraint_ self =
     | COr_ [self]
     | CImplies_ self self
     | CSubset_ LitPattern LitPattern
+    | CEqual_ LitPattern LitPattern
     | CTrue_
     | CNot_ self
     deriving (Functor, Traversable, Foldable, Show)
@@ -151,7 +154,8 @@ data Constraint_ self =
 pattern CAnd l = Fix (CAnd_ l)
 pattern COr l = Fix (COr_ l)
 pattern CImplies x y = Fix (CImplies_ x y)
-pattern CSubset p1 p2 = Fix (CSubset_ p1 p2)
+pattern CSubset x y = Fix (CSubset_ x y)
+pattern CEqual x y = Fix (CEqual_ x y)
 pattern CTrue = Fix CTrue_
 pattern CNot x = Fix (CNot_ x)
 
@@ -175,8 +179,16 @@ getSafetyConstrs (Safety l) = map (\(c, _, _, _) -> c) l
 p1 ==== p2 =
     let l1 = toLit p1
         l2 = toLit p2
-    in
-    (l1 << l2) /\ (l2 << l1)
+    in case (l1, l2 ) of
+        (_,Top) -> Top << l1
+        (Top, _) ->  Top << l2
+        (_,Bottom) ->   l1 << Bottom
+        (Bottom, _) -> l2 << Bottom
+        _ -> CEqual l1 l2
+
+cNot :: Constraint -> Constraint
+cNot (CNot c) = c
+cNot c = CNot c
 
 unions :: (Subsetable a) => [a] -> LitPattern
 -- unions [] = Bottom
@@ -246,6 +258,7 @@ typeSubsts sub (t :@ e) = (typeSubsts sub <$> t) :@ (sub e)
 
 constrSubsts :: (Variable -> Variable) -> Constraint -> Constraint
 constrSubsts sub c@(CSubset p1 p2) = trace ("Subbing in subset " ++ show c) $ CSubset (litSubsts sub p1) (litSubsts sub p2)
+constrSubsts sub c@(CEqual p1 p2) = trace ("Subbing in equal " ++ show c) $ CEqual (litSubsts sub p1) (litSubsts sub p2)
 constrSubsts sub (Fix c) = trace ("Subbing in else " ++ show c) $  Fix (constrSubsts sub <$> c)
 
 litSubsts :: (Variable -> Variable) -> LitPattern -> LitPattern
@@ -263,6 +276,7 @@ litSubsts sub (Fix l) = trace ("Subbing in lit else " ++ show l) $  Fix (litSubs
 
 typeLocalVars (t :@ e) = [e] 
 constrLocalVars (CSubset p1 p2) = (litFreeVars p1) ++ (litFreeVars p2)
+constrLocalVars (CEqual p1 p2) = (litFreeVars p1) ++ (litFreeVars p2)
 constrLocalVars c = [] 
 litLocalVars (SetVar v) = [v]
 litLocalVars l = []
@@ -320,12 +334,32 @@ generalize _Gamma tipe constr safety = do
     return $  Forall (allFreeVars List.\\ gammaFreeVars) tipe (constr /\ safetyConstr)
 
 
+flattenTopLevel :: (ConstrainM m) => Constraint -> m Constraint
+flattenTopLevel (CAnd l) = CAnd <$> helper l []
+    where
+        helper [] accum = return $ reverse accum
+        helper ((CEqual (SetVar l1) (SetVar l2)) : rest) accum = do
+            desc <- liftIO $ UF.get l1
+            liftIO $ UF.union l1 l2 desc
+            helper rest accum
+        helper ((CSubset (SetVar l1) (SetVar l2)) : (CSubset (SetVar l2') (SetVar l1')) : rest) accum | l1 == l1' && l2 == l2' = do
+            desc <- liftIO $ UF.get l1
+            liftIO $ UF.union l1 l2 desc
+            helper rest accum
+        helper ((CSubset _ Top) : l ) accum = helper l accum
+        helper ((CSubset Bottom _) : l) accum = helper l accum
+        helper ((CAnd l) : rest) accum = helper (l ++ rest) accum
+        helper (h : rest) accum = helper rest (h : accum) 
+flattenTopLevel c = return c
+        
+
 toSC :: (ConstrainM m) => Constraint -> m SC.CExpr
 toSC c = case c of
     CTrue -> return $ SC.CSubset SC.Top SC.Top
     CAnd cl -> SC.CAnd <$> mapM toSC cl
     COr cl -> SC.COr <$> mapM toSC cl
     CNot c -> SC.CNot <$> toSC c
+    (CEqual l1 l2) -> toSC ((CSubset l1 l2) /\ (CSubset l2 l1))
     CSubset l1 l2 -> do
         tform1 <- (toSCLit l1)
         tform2 <- toSCLit l2
@@ -345,7 +379,7 @@ toSCLit l = do
         Proj ctor arity i l -> do
             projName <-  freshName "ProjVar"
             tform <- toSCLit l
-            return $ \ f -> tform $ \ e -> SC.withProjection projName (getArity arity) (SC.Projection ctor i e) f
+            return $ \ f -> tform $ \ e -> SC.withProjection projName (getArity arity) (SC.Projection ctor (i-1) e) f
         Union l1 l2 -> do
             tform1 <- toSCLit l1
             tform2 <- toSCLit l2
@@ -372,20 +406,30 @@ toSCLit l = do
         
 solveConstraint :: ConstrainM m => Constraint -> m (Either String ())
 solveConstraint c = do
-    sc <- toSC c
-    liftIO $ SC.solve (SC.Options "" True "z3" False False False) sc 
+    flatC <- flattenTopLevel c
+    liftIO $ doLog ("Flattened top level:\n" ++ show flatC ++ "\n")
+    sc <- toSC flatC
+    liftIO $ SC.solve (SC.Options "" verbose "z3" False False False) sc 
 
 (==>) ::  Constraint -> Constraint -> Constraint
+CTrue ==> y = y
 x ==> y =  CImplies x y
 
 --Smart constructor for AND
 (/\) :: Constraint -> Constraint -> Constraint
+CTrue /\ x = x
+x /\ CTrue = x
 (CAnd c1) /\  (CAnd c2) =   CAnd (c1 ++ c2)
 c1 /\  (CAnd c2) =  CAnd (c1 : c2)
 (CAnd c1) /\ c2 =  CAnd (c2 : c1 )
 c1 /\ c2 =  CAnd [c1, c2]
 
-c1 \/ c2 = COr [c1, c2]
+(\/) :: Constraint -> Constraint -> Constraint
+(COr c1) \/  (COr c2) =   COr (c1 ++ c2)
+c1 \/  (COr c2) =  COr (c1 : c2)
+(COr c1) \/ c2 =  COr (c2 : c1 )
+c1 \/ c2 =  COr [c1, c2]
+
 
 addEffectVars :: (ConstrainM m) => Can.Type -> m TypeEffect
 addEffectVars (Can.TAlias t1 t2 t3 actualType) = case actualType of
@@ -514,15 +558,20 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
     self  = constrainExpr tyMap
     constrainExpr_ ::  (ConstrainM m) => Can.Expr_ -> TypeEffect -> (Gamma, Constraint) -> m Constraint
     constrainExpr_ (Can.VarLocal name) t (_Gamma, pathConstr) = do
-        let sigma = (_Gamma Map.! name)
+        let sigma = 
+                case Map.lookup name _Gamma of
+                    Nothing -> error $ "constrainExpr: name " ++ (N.toString name) ++ " not found in " ++ (show _Gamma)
+                    (Just s) -> s
         (tipe, constr) <- instantiate sigma 
         liftIO $ doLog $ "Instantiating " ++ (show sigma) ++ " into " ++ (show (tipe, constr)) ++ " for var " ++ (N.toString name)
         liftIO $ doLog $ "Unifying types" ++ (show t) ++ "\n  and " ++ show tipe 
         unifyTypes t tipe
         return constr
-    constrainExpr_ (Can.VarTopLevel _ name) t (_Gamma, pathConstr) = --TODO what about other modules?
+    constrainExpr_ e@(Can.VarTopLevel _ name) t (_Gamma, pathConstr) = --TODO what about other modules?
         case Map.lookup name _Gamma  of
-            Nothing -> return $ t ==== Top
+            Nothing -> do
+                liftIO $ doLog ("TOP for Setting type for " ++ (show e) ++ " imported, var " ++ show t) 
+                return $ t ==== Top
             Just sigma -> do
                 --TODO reduce duplication
                 (tipe, constr) <- instantiate sigma 
@@ -537,11 +586,18 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
         where
             ctorLoop ((Fun dom cod) :@ v3) reverseAccum condAccum = ctorLoop cod (dom : reverseAccum) (condAccum /\ (v3 ==== litLambda))
             ctorLoop (_ :@ ctorVar ) reverseAccum condAccum = condAccum /\ (ctorVar ==== (Ctor (N.toString ctorName) (map toLit $ reverse reverseAccum)) )
-    constrainExpr_ (Can.VarOperator _ _ _ _) t _GammaPath = return $ t ==== Top
-    constrainExpr_ (Can.Binop _ _ _ _ e1 e2) t _GammaPath = do
-        (_, constr1) <- self _GammaPath e1
-        (_, constr2) <- self _GammaPath e2
-        return $ constr1 /\ constr2 /\ (t ==== Top) --TODO built-in types for operators  
+    constrainExpr_ e@(Can.VarOperator _ _ _ _) t _GammaPath = do
+        liftIO $ doLog ("TOP for var operator " ++ show e ++ ", var " ++ show t)
+        return $ t ==== Top
+    constrainExpr_ e@(Can.Binop name _ _ _ e1 e2) t _GammaPath = do
+        (ty1, constr1) <- self _GammaPath e1
+        (ty2, constr2) <- self _GammaPath e2
+        opConstr <- case N.toString name of
+            "::" -> return $ t ==== litCons ty1 ty2
+            _ -> do
+                liftIO $ doLog ("TOP for binary operator " ++ show e ++ ", var " ++ show t)
+                return (t ==== Top)
+        return $ constr1 /\ constr2 /\ opConstr --TODO built-in types for operators  
     constrainExpr_ (Can.Case discr branches) resultType (_Gamma, pathConstr) = do
         (inputPatterns, inputConstrs) <- self (_Gamma, pathConstr) discr
         --TODO negate previous branches
@@ -558,8 +614,9 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
                     (rhsTy, rhsConstrs) <- self (Map.union newEnv _Gamma, newPathConstr) rhs
                     return (v,
                         rhsConstrs /\ (canBeInBranch ==> (v ==== rhsTy))
-                        /\ ((CNot canBeInBranch) ==> (v ==== Bottom))))
-        --The result of the whole thing is the union of all the results of the branches
+                        /\ ((cNot canBeInBranch) ==> (v << Bottom)))) 
+        --The result of the whole thing contains the union of all the results of the branches
+        --We set this as << in case we've lost information due to recursion
         let resultConstr = resultType ==== (unions patVars)
         return (inputConstrs /\ resultConstr /\ CAnd branchConstrs)
     --Lambda base case: just typecheck the body if there are 0 args
@@ -659,7 +716,9 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
     constrainExpr_ (Can.Int i) typeEffect  _GammaPath =  return $ (litInt i) ==== typeEffect
     constrainExpr_ (Can.Float expr) t _GammaPath = return CTrue
     constrainExpr_ (Can.Negate expr) t _GammaPath = return (t ==== Top) --TODO something smart for negation
-    constrainExpr_ (Can.VarKernel expr1 expr2) t _GammaPath = return (t ==== Top)
+    constrainExpr_ e@(Can.VarKernel expr1 expr2) t _GammaPath = do
+        liftIO $ doLog ("TOP for varKernel " ++ show e ++ ", var " ++ show t)
+        return (t ==== Top)
     constrainExpr_ (Can.VarForeign expr1 expr2 expr3) t _GammaPath = return (t ==== Top)
     constrainExpr_ (Can.VarDebug expr1 expr2 expr3) t _GammaPath = return (t ==== Top)
     constrainExpr_ Can.Unit (_:@v) _GammaPath = return $ litUnit ==== v
@@ -677,13 +736,23 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
         --Get the type of the body, and add it into the environment as a monoscheme
         --To start our argument-processing loop
         (Can.Def (A.At wholeRegion x) funArgs body) -> do
-            let wholeType = (tyMap Map.! wholeRegion)
-            --We run in a separate instance, so we get different safety constraints
+            let wholeType = 
+                    case Map.lookup wholeRegion tyMap of
+                        Nothing -> error $ "constrainDef: Can't find region " ++ (show wholeRegion) ++ " in type map " ++ (show tyMap)
+                        Just s-> s  
+            --We run in a separaelm te instance, so we get different safety constraints
             --TODO need this?
             (exprConstr, safety) <- unpackEither $ liftIO $ runCMIO theRef $ constrainDef_  funArgs body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
             return (x, wholeType, exprConstr, safety)
-        (Can.TypedDef (A.At wholeRegion x) _ patTypes body _) -> do
-            let wholeType = (tyMap Map.! wholeRegion)
+        (Can.TypedDef (A.At wholeRegion x) _ patTypes body retTipe) -> do
+            retTyEff <- addEffectVars retTipe
+            argTyEffs <- mapM addEffectVars (map snd patTypes)
+            freshVars <- forM patTypes $ \ _ -> freshVar
+            let wholeType = foldr (\ (arg, var) ret -> (Fun arg ret) :@ var) retTyEff (zip argTyEffs freshVars)
+            -- let wholeType = 
+            --         case Map.lookup wholeRegion tyMap of
+            --             Nothing -> error $ "constrainDef typed: Can't find region " ++ (show wholeRegion) ++ " in type map " ++ (show tyMap)
+            --             Just s-> s 
             --We run in a separate instance, so we get different safety constraints
             --TODO need this?
             (exprConstr, safety)  <- unpackEither $ liftIO $ runCMIO theRef $ constrainDef_  (map fst patTypes) body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
@@ -747,14 +816,17 @@ canPatToLit  (A.At info pat) =
         Can.PCtor { Can._p_name = ctorName, Can._p_args = ctorArgs } -> Ctor (N.toString ctorName) (map (canPatToLit . Can._arg) ctorArgs)
 
 envAfterMatch :: Map.Map R.Region TypeEffect ->  LitPattern  -> Can.Pattern -> Gamma
-envAfterMatch typesForRegions matchedPat (A.At region pat)  =
+envAfterMatch tyMap matchedPat (A.At region pat)  =
     let
-        ourType = typesForRegions Map.! region
+        ourType = 
+            case Map.lookup region tyMap of
+                Nothing -> error $ "envAfterMatch: Can't find region " ++ (show region) ++ " in type map " ++ (show tyMap)
+                Just s-> s 
         ctorProjectionEnvs  topPat nameString ctorArgPats =
             let
                 arity = Arity (length ctorArgPats)
                 subPats = map ((flip $ Proj nameString arity) topPat) [1.. (getArity arity)]
-                subDicts = zipWith ((envAfterMatch typesForRegions) ) subPats ctorArgPats
+                subDicts = zipWith ((envAfterMatch tyMap) ) subPats ctorArgPats
              in Map.unions subDicts
     in case pat of
         Can.PVar x -> Map.singleton x (monoscheme ourType matchedPat)
@@ -813,10 +885,14 @@ litNat n = case n of
 
 constrainRecursiveDefs :: (ConstrainM m) => Map.Map R.Region TypeEffect -> Gamma -> [Can.Def] -> m Gamma
 constrainRecursiveDefs tyMap _Gamma defs = do
+    let ourType region = 
+            case Map.lookup region tyMap of
+                Nothing -> error $ "constrainRecursiveDefs: Can't find region " ++ (show region) ++ " in type map " ++ (show tyMap)
+                Just s-> s 
     defTypes <- forM defs $ \ def -> 
         case def of
-            (Can.Def (A.At region name) def2 def3) -> return (name, monoschemeVar $ tyMap Map.! region) 
-            (Can.TypedDef (A.At region name) def2 def3 def4 def5) -> return (name, monoschemeVar $ tyMap Map.! region)
+            (Can.Def (A.At region name) def2 def3) -> return (name, monoschemeVar (ourType region)) 
+            (Can.TypedDef (A.At region name) def2 def3 def4 def5) -> return (name, monoschemeVar (ourType region))
                 
     let exprs = 
             map (\ def -> case def of
