@@ -63,7 +63,7 @@ import qualified AST.Utils.Shader
 
 import qualified Debug.Trace as Trace
 
-verbose = True
+verbose = False
 
 {-# INLINE trace #-}
 -- trace = Trace.trace
