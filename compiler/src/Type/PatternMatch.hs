@@ -263,7 +263,7 @@ traverseTE :: (TypeEffect -> TypeEffect) -> TypeEffect -> TypeEffect
 traverseTE f (t :@ e) = f ((f <$>  t) :@ e)
 
 typeSubsts :: (Variable -> Variable) -> TypeEffect -> TypeEffect
-typeSubsts sub (t :@ e) = (typeSubsts sub <$> t) :@ (sub e)
+typeSubsts sub (t :@ e) = (typeSubsts sub <$> t) :@ (litSubsts sub e)
 
 constrSubsts :: (Variable -> Variable) -> Constraint -> Constraint
 constrSubsts sub c@(CSubset p1 p2) = trace ("Subbing in subset " ++ show c) $ CSubset (litSubsts sub p1) (litSubsts sub p2)
@@ -283,14 +283,14 @@ litSubsts sub (Fix l) = trace ("Subbing in lit else " ++ show l) $  Fix (litSubs
 -- litSubsts :: (Variable -> Variable) -> LitPattern -> LitPattern
 -- litSubsts sub (Fix l) = oneLitSubst sub (Fix $ (oneLitSubst sub <$> l)) 
 
-typeLocalVars (t :@ e) = [e]
+typeLocalVars (t :@ e) = litFreeVars e
 constrLocalVars (CSubset p1 p2) = (litFreeVars p1) ++ (litFreeVars p2)
 constrLocalVars (CEqual p1 p2) = (litFreeVars p1) ++ (litFreeVars p2)
 constrLocalVars c = []
 litLocalVars (SetVar v) = [v]
 litLocalVars l = []
 
-typeFreeVars (t :@ e) =  e: concatMap typeLocalVars (toList t)
+typeFreeVars (t :@ e) =  (litFreeVars e) ++ concatMap typeLocalVars (toList t)
 constrFreeVars (Fix c) =  concatMap constrLocalVars ((Fix c) : toList c)
 litFreeVars (Fix l) =  concatMap litLocalVars ((Fix l) : toList l)
 -- schemeFreeVars (Forall v t c  ) =  (typeFreeVars t) ++ (constrFreeVars c) 
@@ -336,14 +336,32 @@ generalize :: (ConstrainM m) => Gamma -> TypeEffect -> Constraint  -> m EffectSc
 generalize _Gamma tipe constr = do
     let allFreeVars_dupes = (typeFreeVars tipe) ++ constrFreeVars constr
     allFreeVars <- liftIO $ List.nub <$> mapM UF.repr allFreeVars_dupes
-    let schemeVars (Forall bnd (t :@ v1) sconstr) = liftIO $ do
+    let schemeVars (Forall bnd (t :@ lit) sconstr) = liftIO $ do
+            let vEff = litFreeVars lit
             let vrest = constrFreeVars sconstr
-            reprs <- mapM UF.repr (v1 : vrest)
+            reprs <- mapM UF.repr (vEff ++ vrest)
             boundReprs <- mapM UF.repr bnd
             return $ reprs List.\\ boundReprs
     gammaFreeVars <- (List.nub . concat) <$> mapM schemeVars (Map.elems _Gamma)
     return $  Forall (allFreeVars List.\\ gammaFreeVars) tipe constr
 
+subConstrVars (Fix c) = 
+    case c of
+        (CSubset_ l1 l2) -> CSubset <$> (subLitVars l1) <*> (subLitVars l2)
+        (CEqual_ l1 l2) -> CEqual <$> (subLitVars l1) <*> (subLitVars l2)
+        _ -> Fix <$> mapM subConstrVars c
+-- subLitVars :: LitPattern -> m LitPattern
+subLitVars (Fix l) = case l of
+    (SetVar_ v) -> do
+        (_,ty) <- liftIO $ UF.get v
+        case ty of
+            Nothing -> return (SetVar v)
+            (Just l) -> subLitVars l
+    _ -> Fix <$> mapM subLitVars l 
+subTypeVars (t :@ e) = do
+    tnew <-  (mapM subTypeVars t) 
+    enew <- (subLitVars e)
+    return $ tnew :@ enew 
 
 optimizeConstr :: (ConstrainM m) => TypeEffect  -> Constraint -> m (TypeEffect, Constraint)
 optimizeConstr tipe (CAnd []) = return (tipe, CTrue)
@@ -351,21 +369,21 @@ optimizeConstr tipe (CAnd l) = do
     optimized <- doOpts l
     case (optimized == l) of
         True -> return $ (tipe, CAnd l)
-        False -> optimizeConstr typeFrees (CAnd optimized)
+        False -> optimizeConstr tipe (CAnd optimized)
     where
         doOpts l = do 
             liftIO $ doLog ("Initial list:\n" ++ show l)
-            lSubbed <- forM l subVars
+            lSubbed <- forM l subConstrVars
             liftIO $ doLog ("After subbed:\n" ++ show lSubbed)
             optimized <- helper lSubbed []
             liftIO $ doLog ("After opt:\n" ++ show optimized)
-            ret <- forM optimized subVars
+            ret <- forM optimized subConstrVars
             liftIO $ doLog ("After second sub:\n" ++ show ret)
-            return $ removeDead ret
-        removeDead l = 
+            return $ removeDead ret tipe
+        removeDead l tp = 
             let
                 occurrences = map constrFreeVars l
-                varIsDead v = (not $ v `elem` _) && length ((filter (v `elem`) occurrences) < 2)
+                varIsDead v = (not $ v `elem` (typeFreeVars tp)) && (length (filter (v `elem`) occurrences) < 2)
                 constrIsDead (CSubset (SetVar v) l) = varIsDead v
                 constrIsDead (CSubset l (SetVar v)) = varIsDead v
                 constrIsDead (CEqual (SetVar v) l) = varIsDead v
@@ -374,19 +392,7 @@ optimizeConstr tipe (CAnd l) = do
             in filter (not . constrIsDead) l
         
         -- subVars :: Constraint -> m Constraint
-        subVars (Fix c) = 
-            case c of
-                (CSubset_ l1 l2) -> CSubset <$> (subLitVars l1) <*> (subLitVars l2)
-                (CEqual_ l1 l2) -> CEqual <$> (subLitVars l1) <*> (subLitVars l2)
-                _ -> Fix <$> mapM subVars c
-        -- subLitVars :: LitPattern -> m LitPattern
-        subLitVars (Fix l) = case l of
-            (SetVar_ v) -> do
-                (_,ty) <- liftIO $ UF.get v
-                case ty of
-                    Nothing -> return (SetVar v)
-                    (Just l) -> subLitVars l
-            _ -> Fix <$> mapM subLitVars l 
+
         -- helper :: [Constraint] -> [Constraint] -> m [Constraint] 
         helper [] accum = return $ reverse accum
         helper (CTrue : rest) accum = helper rest accum
@@ -514,7 +520,7 @@ addEffectVars t = do
                 Nothing -> return Nothing
                 Just t -> Just <$> addEffectVars t
             Tuple <$> addEffectVars t1 <*> addEffectVars t2 <*> (return mt3)
-    constraintVar <- freshVar
+    constraintVar <- SetVar <$> freshVar
     return $ innerType :@ constraintVar
 -- addEffectVars (Can.Alias t1 t2 t3 actualType) = addEffectVars actualType
 -- addEffectVars t = do
@@ -545,6 +551,24 @@ addEffectVars t = do
 --     effect <- freshVar --TODO what descriptor?
 --     return $ tipe :@ effect
 
+unifyEffects :: (ConstrainM m) => LitPattern -> LitPattern -> m Constraint
+unifyEffects (SetVar v1) (SetVar v2) = unifyEffectVars v1 v2
+unifyEffects (SetVar v) l1 = do
+    (name, ml2 ) <- liftIO $ UF.get v
+    case ml2 of
+        Just l2 -> return $ l1 ==== l2
+        Nothing -> do
+            liftIO $ UF.set v (name, Just l1)
+            return CTrue
+unifyEffects l1 (SetVar v) = do
+    (name, ml2 ) <- liftIO $ UF.get v
+    case ml2 of
+        Just l2 -> return $ l1 ==== l2
+        Nothing -> do
+            liftIO $ UF.set v (name, Just l1)
+            return CTrue 
+unifyEffects l1 l2 = return (l1 ==== l2)
+
 unifyEffectVars :: (ConstrainM m) => Variable -> Variable -> m Constraint
 unifyEffectVars v1 v2 = do
     (name1, eff1) <- liftIO $ UF.get v1
@@ -563,7 +587,7 @@ unifyEffectVars v1 v2 = do
 
 unifyTypes :: (ConstrainM m) => TypeEffect -> TypeEffect -> m Constraint
 unifyTypes (t1 :@ v1) (t2 :@ v2) = do
-    constr1 <- unifyEffectVars v1 v2
+    constr1 <- unifyEffects v1 v2
     constr2 <- case (t1, t2) of
         ((TypeVar v1), _) -> return CTrue
         (_, (TypeVar v1)) -> return CTrue
@@ -828,7 +852,7 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
         (Can.TypedDef (A.At wholeRegion x) _ patTypes body retTipe) -> do
             retTyEff <- addEffectVars retTipe
             argTyEffs <- mapM (addEffectVars . snd) patTypes
-            freshVars <- forM patTypes $ \ _ -> freshVar
+            freshVars <- forM patTypes $ \ _ -> SetVar <$> freshVar
             let wholeType = foldr (\ (arg, var) ret -> (Fun arg ret) :@ var) retTyEff (zip argTyEffs freshVars)
             -- let wholeType = 
             --         case Map.lookup wholeRegion tyMap of
@@ -842,8 +866,8 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
     let safetyList = unSafety safety
     liftIO $ doLog $  "Solving constraints for definition " ++ N.toString  x
     liftIO $ doLog $ "Got safety constraints " ++ (show $ getSafetyConstrs safety)
-    defAndSafetyConstr <- optimizeConstr defType (defConstr /\ CAnd (getSafetyConstrs safety)) 
-    mConstraintSoln <- solveConstraint defAndSafetyConstr
+    (optimizedType , optimizedConstr) <- optimizeConstr defType (defConstr /\ CAnd (getSafetyConstrs safety)) 
+    mConstraintSoln <- solveConstraint optimizedConstr
     case mConstraintSoln of
         Right () -> return ()
         Left _ -> do
@@ -862,7 +886,7 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
 
     --Now that we have types and constraints for the body, we generalize them over all free variables
     --not  occurring in Gamma, and return an environment mapping the def name to this scheme
-    scheme <- generalize (fst _GammaPath) defType defAndSafetyConstr
+    scheme <- generalize (fst _GammaPath) optimizedType optimizedConstr
     liftIO $ doLog $ "Generalized type for " ++ N.toString x ++ " is " ++ (show scheme)
     return $ Map.singleton x scheme
     where
