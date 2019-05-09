@@ -22,6 +22,8 @@ import Data.Foldable (foldrM, toList)
 import qualified Data.Map.Strict as Map
 import Data.Word (Word32)
 
+import Data.Char (isAlphaNum)
+
 import qualified Nitpick.PatternMatches as PatError
 
 import Control.Monad.Fail
@@ -94,6 +96,7 @@ deriving instance Show Can.CaseBranch
 deriving instance Show Can.FieldUpdate
 instance Show AST.Utils.Shader.Shader where
     show _ = "SHADER"
+
 -- deriving instance Show Can.Pattern_
 
 
@@ -118,7 +121,7 @@ instance Show Variable where
 newtype Fix f = Fix (f (Fix f))
 
 infix 9 :@
-data TypeEffect =  (TypeEffect_ TypeEffect) :@ Variable
+data TypeEffect =  (TypeEffect_ TypeEffect) :@ LitPattern
     deriving Show
 
 data LitPattern_ self =
@@ -130,7 +133,7 @@ data LitPattern_ self =
     | Intersect_ self self
     | Union_ self self
     | Neg_ self
-    deriving (Functor, Traversable, Foldable, Show)
+    deriving (Functor, Traversable, Foldable, Show, Eq)
 
 pattern SetVar v = Fix ( SetVar_ v)
 pattern Ctor s l = Fix (Ctor_ s l)
@@ -150,7 +153,7 @@ data Constraint_ self =
     | CEqual_ LitPattern LitPattern
     | CTrue_
     | CNot_ self
-    deriving (Functor, Traversable, Foldable, Show)
+    deriving (Functor, Traversable, Foldable, Show, Eq)
 
 pattern CAnd l = Fix (CAnd_ l)
 pattern COr l = Fix (COr_ l)
@@ -170,6 +173,10 @@ instance (Show (f (Fix f))) => (Show (Fix f))
 -- deriving instance (Show a) => Show (LitPattern_ a )
 -- deriving instance (Show a) => Show (Constraint_ a)
 
+instance (Eq (f (Fix f))) => (Eq (Fix f)) where
+    (Fix a) == (Fix b) = a == b  
+
+
 
 newtype Safety = Safety {unSafety :: [(Constraint, R.Region, PatError.Context, [Can.Pattern] )]}
     deriving (Monoid, Semigroup)
@@ -182,10 +189,10 @@ p1 ==== p2 =
     let l1 = toLit p1
         l2 = toLit p2
     in case (l1, l2 ) of
-        (_,Top) -> Top << l1
-        (Top, _) ->  Top << l2
-        (_,Bottom) ->   l1 << Bottom
-        (Bottom, _) -> l2 << Bottom
+        -- (_,Top) -> Top << l1
+        -- (Top, _) ->  Top << l2
+        -- (_,Bottom) ->   l1 << Bottom
+        -- (Bottom, _) -> l2 << Bottom
         _ -> CEqual l1 l2
 
 cNot :: Constraint -> Constraint
@@ -338,23 +345,84 @@ generalize _Gamma tipe constr = do
     return $  Forall (allFreeVars List.\\ gammaFreeVars) tipe constr
 
 
-optimizeConstr :: (ConstrainM m) => Constraint -> m Constraint
-optimizeConstr (CAnd l) = CAnd <$> helper l []
+optimizeConstr :: (ConstrainM m) => TypeEffect  -> Constraint -> m (TypeEffect, Constraint)
+optimizeConstr tipe (CAnd []) = return (tipe, CTrue)
+optimizeConstr tipe (CAnd l) = do
+    optimized <- doOpts l
+    case (optimized == l) of
+        True -> return $ (tipe, CAnd l)
+        False -> optimizeConstr typeFrees (CAnd optimized)
     where
+        doOpts l = do 
+            liftIO $ doLog ("Initial list:\n" ++ show l)
+            lSubbed <- forM l subVars
+            liftIO $ doLog ("After subbed:\n" ++ show lSubbed)
+            optimized <- helper lSubbed []
+            liftIO $ doLog ("After opt:\n" ++ show optimized)
+            ret <- forM optimized subVars
+            liftIO $ doLog ("After second sub:\n" ++ show ret)
+            return $ removeDead ret
+        removeDead l = 
+            let
+                occurrences = map constrFreeVars l
+                varIsDead v = (not $ v `elem` _) && length ((filter (v `elem`) occurrences) < 2)
+                constrIsDead (CSubset (SetVar v) l) = varIsDead v
+                constrIsDead (CSubset l (SetVar v)) = varIsDead v
+                constrIsDead (CEqual (SetVar v) l) = varIsDead v
+                constrIsDead (CEqual l (SetVar v)) = varIsDead v
+                constrIsDead c = False
+            in filter (not . constrIsDead) l
+        
+        -- subVars :: Constraint -> m Constraint
+        subVars (Fix c) = 
+            case c of
+                (CSubset_ l1 l2) -> CSubset <$> (subLitVars l1) <*> (subLitVars l2)
+                (CEqual_ l1 l2) -> CEqual <$> (subLitVars l1) <*> (subLitVars l2)
+                _ -> Fix <$> mapM subVars c
+        -- subLitVars :: LitPattern -> m LitPattern
+        subLitVars (Fix l) = case l of
+            (SetVar_ v) -> do
+                (_,ty) <- liftIO $ UF.get v
+                case ty of
+                    Nothing -> return (SetVar v)
+                    (Just l) -> subLitVars l
+            _ -> Fix <$> mapM subLitVars l 
+        -- helper :: [Constraint] -> [Constraint] -> m [Constraint] 
         helper [] accum = return $ reverse accum
+        helper (CTrue : rest) accum = helper rest accum
         helper ((CEqual (SetVar l1) (SetVar l2)) : rest) accum = do
-            desc <- liftIO $ UF.get l1
-            liftIO $ UF.union l1 l2 desc
-            helper rest accum
+            eq <- liftIO $ UF.equivalent l1 l2
+            case eq of
+                True -> helper rest accum
+                False -> do
+                    constr <- unifyEffectVars l1 l2
+                    helper (constr: rest) accum
+        helper ((CEqual l1 (SetVar v)): rest) accum = do
+            (name, mval) <- liftIO $ UF.get v
+            case mval of
+                Nothing -> do
+                    liftIO $ UF.set v (name, Just l1)
+                    helper rest accum
+                Just l2 -> helper ((CEqual l1 l2 ) : rest) accum 
+        helper ((CEqual (SetVar v) l1 ): rest) accum = do
+            (name, mval) <- liftIO $ UF.get v
+            case mval of
+                Nothing -> do
+                    liftIO $ UF.set v (name, Just l1)
+                    helper rest accum
+                Just l2 -> helper ((CEqual l1 l2 ) : rest) accum
+            
         helper ((CSubset (SetVar l1) (SetVar l2)) : (CSubset (SetVar l2') (SetVar l1')) : rest) accum | l1 == l1' && l2 == l2' = do
             desc <- liftIO $ UF.get l1
             liftIO $ UF.union l1 l2 desc
             helper rest accum
         helper ((CSubset _ Top) : l ) accum = helper l accum
+        helper (CSubset Top pat@(SetVar _) : rest) accum = helper ((CEqual Top pat):rest) accum
         helper ((CSubset Bottom _) : l) accum = helper l accum
+        helper (CSubset pat@(SetVar _) Bottom : rest) accum = helper ((CEqual Bottom pat):rest) accum
         helper ((CAnd l) : rest) accum = helper (l ++ rest) accum
         helper (h : rest) accum = helper rest (h : accum)
-optimizeConstr c = return c
+optimizeConstr tipe c = return (tipe, c)
 
 
 toSC :: (ConstrainM m) => Constraint -> m SC.CExpr
@@ -396,11 +464,12 @@ toSCLitNoCycle seen l = do
         l -> error $ "Missing case for lit" ++ show l
 
 solveConstraint :: ConstrainM m => Constraint -> m (Either String ())
+solveConstraint CTrue = return $ Right ()
 solveConstraint c = do
     liftIO $ doLog ("Flattened top level:\n" ++ show c ++ "\n")
     sc <- toSC c
     liftIO $ putStrLn "Solving pattern match constraints"
-    ret <- liftIO $ SC.solve (SC.Options "" False {-verbose-} "z3" False False False) sc
+    ret <- liftIO $ SC.solve (SC.Options "" False "z3" False False False) sc
     liftIO $ putStrLn "Solved Pattern Match constraints"
     return ret
 
@@ -627,7 +696,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
                     (rhsTy, rhsConstrs) <- self (Map.union newEnv _Gamma, newPathConstr) rhs
                     return (v,
                         newEnvConstr /\ rhsConstrs /\ (canBeInBranch ==> (v ==== rhsTy))
-                        /\ ((cNot canBeInBranch) ==> (v << Bottom))))
+                        /\ ((cNot canBeInBranch) ==> (v ==== Bottom))))
         --The result of the whole thing contains the union of all the results of the branches
         --We set this as << in case we've lost information due to recursion
         let resultConstr = resultType << (unions patVars)
@@ -773,7 +842,7 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
     let safetyList = unSafety safety
     liftIO $ doLog $  "Solving constraints for definition " ++ N.toString  x
     liftIO $ doLog $ "Got safety constraints " ++ (show $ getSafetyConstrs safety)
-    defAndSafetyConstr <- optimizeConstr (defConstr /\ CAnd (getSafetyConstrs safety)) 
+    defAndSafetyConstr <- optimizeConstr defType (defConstr /\ CAnd (getSafetyConstrs safety)) 
     mConstraintSoln <- solveConstraint defAndSafetyConstr
     case mConstraintSoln of
         Right () -> return ()
@@ -893,7 +962,7 @@ ctorFalse = "--False"
 litFalse = Ctor ctorFalse []
 ctorChar c = "--CHAR_" ++ unpack c
 litChar c = Ctor (ctorChar c) []
-ctorString s = "--STRING" ++ show s
+ctorString s = "--STRING_" ++ (filter isAlphaNum $ show s)
 litString s = Ctor (ctorString s) []
 
 -- ctorZero = "--ZERO"
@@ -922,7 +991,7 @@ constrainRecursiveDefs tyMap _Gamma defs = do
             (Can.TypedDef (A.At wholeRegion name) _ patTypes body retTipe) -> do
                 retTyEff <- addEffectVars retTipe
                 argTyEffs <- mapM addEffectVars (map snd patTypes)
-                freshVars <- forM patTypes $ \ _ -> freshVar
+                freshVars <- forM patTypes $ \ _ -> SetVar <$> freshVar
                 let wholeType = foldr (\ (arg, var) ret -> (Fun arg ret) :@ var) retTyEff (zip argTyEffs freshVars)
                 return  (name, monoschemeVar wholeType)
 
