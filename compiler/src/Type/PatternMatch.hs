@@ -63,7 +63,7 @@ import qualified AST.Utils.Shader
 
 import qualified Debug.Trace as Trace
 
-verbose = False
+verbose = True
 
 {-# INLINE trace #-}
 -- trace = Trace.trace
@@ -397,7 +397,10 @@ solveConstraint c = do
     flatC <- flattenTopLevel c
     liftIO $ doLog ("Flattened top level:\n" ++ show flatC ++ "\n")
     sc <- toSC flatC
-    liftIO $ SC.solve (SC.Options "" verbose "z3" False False False) sc
+    liftIO $ putStrLn "Solving pattern match constraints"
+    ret <- liftIO $ SC.solve (SC.Options "" False {-verbose-} "z3" False False False) sc
+    liftIO $ putStrLn "Solved Pattern Match constraints"
+    return ret
 
 (<==>) ::  Constraint -> Constraint -> Constraint
 CTrue <==> y = y
@@ -756,6 +759,7 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
     case mConstraintSoln of
         Right () -> return ()
         Left _ -> do
+            error "Pattern match failure"
             failures <- forM safetyList $ \(safetyConstr, region, context, pats) -> do
                 soln <- solveConstraint (defConstr /\ safetyConstr)
                 case soln of
@@ -873,18 +877,19 @@ litChar c = Ctor (ctorChar c) []
 ctorString s = "--STRING" ++ show s
 litString s = Ctor (ctorString s) []
 
-ctorZero = "--ZERO"
-ctorPos = "--POSITIVE"
-ctorNeg = "--NEGATIVE"
-ctorSucc = "--SUCC"
-litInt i = case i of
-    0 -> Ctor ctorZero []
-    _ | i < 0 -> Ctor ctorPos [litNat (-i)]
-    _ | i > 0 -> Ctor ctorNeg [litNat i]
+-- ctorZero = "--ZERO"
+-- ctorPos = "--POSITIVE"
+-- ctorNeg = "--NEGATIVE"
+-- ctorSucc = "--SUCC"
+litInt i = Ctor ("--_" ++ show i) []
+-- litInt i = case i of
+--     0 -> Ctor ctorZero []
+--     _ | i < 0 -> Ctor ctorPos [litNat (-i)]
+--     _ | i > 0 -> Ctor ctorNeg [litNat i]
 
-litNat n = case n of
-    0 -> Ctor ctorZero []
-    i | i > 0 -> Ctor ctorSucc [litNat (i-1)]
+-- litNat n = case n of
+--     0 -> Ctor ctorZero []
+--     i | i > 0 -> Ctor ctorSucc [litNat (i-1)]
 
 constrainRecursiveDefs :: (ConstrainM m) => Map.Map R.Region TypeEffect -> Gamma -> [Can.Def] -> m Gamma
 constrainRecursiveDefs tyMap _Gamma defs = do
