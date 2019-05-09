@@ -1,93 +1,610 @@
-stack: the flag -xc requires the program to be built with -prof
-stack: 
-stack: Usage: <prog> <args> [+RTS <rtsopts> | -RTS <args>] ... --RTS <args>
-stack: 
-stack:    +RTS    Indicates run time system options follow
-stack:    -RTS    Indicates program arguments follow
-stack:   --RTS    Indicates that ALL subsequent arguments will be given to the
-stack:            program (including any of these RTS flags)
-stack: 
-stack: The following run time system options are available:
-stack: 
-stack:   -?       Prints this message and exits; the program is not executed
-stack:   --info   Print information about the RTS used by this program
-stack: 
-stack:   -K<size>  Sets the maximum stack size (default: 80% of the heap)
-stack:             Egs: -K32k -K512k -K8M
-stack:   -ki<size> Sets the initial thread stack size (default 1k)  Egs: -ki4k -ki2m
-stack:   -kc<size> Sets the stack chunk size (default 32k)
-stack:   -kb<size> Sets the stack chunk buffer size (default 1k)
-stack: 
-stack:   -A<size>  Sets the minimum allocation area size (default 512k) Egs: -A1m -A10k
-stack:   -AL<size> Sets the amount of large-object memory that can be allocated
-stack:             before a GC is triggered (default: the value of -A)
-stack:   -n<size>  Allocation area chunk size (0 = disabled, default: 0)
-stack:   -O<size>  Sets the minimum size of the old generation (default 1M)
-stack:   -M<size>  Sets the maximum heap size (default unlimited)  Egs: -M256k -M1G
-stack:   -H<size>  Sets the minimum heap size (default 0M)   Egs: -H24m  -H1G
-stack:   -xb<addr> Sets the address from which a suitable start for the heap memory
-stack:             will be searched from. This is useful if the default address
-stack:             clashes with some third-party library.
-stack:   -m<n>     Minimum % of heap which must be available (default 3%)
-stack:   -G<n>     Number of generations (default: 2)
-stack:   -c<n>     Use in-place compaction instead of copying in the oldest generation
-stack:            when live data is at least <n>% of the maximum heap size set with
-stack:            -M (default: 30%)
-stack:   -c       Use in-place compaction for all oldest generation collections
-stack:            (the default is to use copying)
-stack:   -w       Use mark-region for the oldest generation (experimental)
-stack:   -I<sec>  Perform full GC after <sec> idle time (default: 0.3, 0 == off)
-stack: 
-stack:   -T         Collect GC statistics (useful for in-program statistics access)
-stack:   -t[<file>] One-line GC statistics (if <file> omitted, uses stderr)
-stack:   -s[<file>] Summary  GC statistics (if <file> omitted, uses stderr)
-stack:   -S[<file>] Detailed GC statistics (if <file> omitted, uses stderr)
-stack: 
-stack: 
-stack:   -Z         Don't squeeze out update frames on stack overflow
-stack:   -B         Sound the bell at the start of each garbage collection
-stack: 
-stack:   -h       Heap residency profile (output file <program>.hp)
-stack:   -i<sec>  Time between heap profile samples (seconds, default: 0.1)
-stack: 
-stack:   -C<secs>  Context-switch interval in seconds.
-stack:             0 or no argument means switch as often as possible.
-stack:             Default: 0.02 sec.
-stack:   -V<secs>  Master tick interval in seconds (0 == disable timer).
-stack:             This sets the resolution for -C and the heap profile timer -i,
-stack:             and is the frequence of time profile samples.
-stack:             Default: 0.01 sec.
-stack: 
-stack:   -N[<n>]    Use <n> processors (default: 1, -N alone determines
-stack:              the number of processors to use automatically)
-stack:   -maxN[<n>] Use up to <n> processors automatically
-stack:   -qg[<n>]  Use parallel GC only for generations >= <n>
-stack:             (default: 0, -qg alone turns off parallel GC)
-stack:   -qb[<n>]  Use load-balancing in the parallel GC only for generations >= <n>
-stack:             (default: 1 for -A < 32M, 0 otherwise;             -qb alone turns off load-balancing)
-stack:   -qn<n>    Use <n> threads for parallel GC (defaults to value of -N)
-stack:   -qa       Use the OS to set thread affinity (experimental)
-stack:   -qm       Don't automatically migrate threads between CPUs
-stack:   -qi<n>    If a processor has been idle for the last <n> GCs, do not
-stack:             wake it up for a non-load-balancing parallel GC.
-stack:             (0 disables,  default: 0)
-stack:   --numa[=<node_mask>]
-stack:             Use NUMA, nodes given by <node_mask> (default: off)
-stack:   --install-signal-handlers=<yes|no>
-stack:             Install signal handlers (default: yes)
-stack:   -e<n>     Maximum number of outstanding local sparks (default: 4096)
-stack:   -xm       Base address to mmap memory in the GHCi linker
-stack:             (hex; must be <80000000)
-stack:   -xq       The allocation limit given to a thread after it receives
-stack:             an AllocationLimitExceeded exception. (default: 100k)
-stack: 
-stack:   -Mgrace=<n>
-stack:             The amount of allocation after the program receives a
-stack:             HeapOverflow exception before the exception is thrown again, if
-stack:             the program is still exceeding the heap limit.
-stack: 
-stack: RTS options may also be specified using the GHCRTS environment variable.
-stack: 
-stack: Other RTS options may be available for programs compiled a different way.
-stack: The GHC User's Guide has full details.
-stack: 
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Elm.PerUserCache.getRoot,
+  called from Elm.PerUserCache.getPackageRoot,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Elm.PerUserCache.getRoot,
+  called from Elm.PerUserCache.getPackageRoot,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK_1_0), stack trace: 
+  System.X509.Unix.getSystemPaths,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK_1_0), stack trace: 
+  System.X509.Unix.getSystemPaths,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsProxyConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsProxyConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsProxyConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsProxyConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsProxyConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsProxyConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsProxyConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsProxyConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsProxyConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsProxyConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsProxyConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsProxyConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsProxyConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsProxyConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsProxyConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsProxyConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsProxyConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsProxyConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsProxyConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsProxyConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsProxyConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsProxyConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsProxyConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsProxyConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  Data.X509.CertificateStore.readCertificateStore,
+  called from System.X509.Unix.getSystemCertificateStore,
+  called from Network.Connection.initConnectionContext,
+  called from Network.HTTP.Client.TLS.getTlsProxyConnection,
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext',
+  called from Network.HTTP.Client.TLS.mkManagerSettingsContext,
+  called from Network.HTTP.Client.TLS.mkManagerSettings,
+  called from Network.HTTP.Client.TLS.tlsManagerSettings,
+  called from Network.HTTP.Client.Types.managerTlsProxyConnection,
+  called from Network.HTTP.Client.Manager.mkCreateConnection,
+  called from Network.HTTP.Client.Manager.newManager,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  File.IO.findHelp,
+  called from File.IO.find,
+  called from Elm.Project.Root.moveToRoot,
+  called from Elm.Project.Root.get,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  File.IO.findHelp,
+  called from File.IO.find,
+  called from Elm.Project.Root.moveToRoot,
+  called from Elm.Project.Root.get,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  File.IO.findHelp,
+  called from File.IO.find,
+  called from Elm.Project.Root.moveToRoot,
+  called from Elm.Project.Root.get,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  File.IO.findHelp,
+  called from File.IO.find,
+  called from Elm.Project.Root.moveToRoot,
+  called from Elm.Project.Root.get,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  File.IO.findHelp,
+  called from File.IO.find,
+  called from Elm.Project.Root.moveToRoot,
+  called from Elm.Project.Root.get,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  File.IO.findHelp,
+  called from File.IO.find,
+  called from Elm.Project.Root.moveToRoot,
+  called from Elm.Project.Root.get,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  File.IO.findHelp,
+  called from File.IO.find,
+  called from Elm.Project.Root.moveToRoot,
+  called from Elm.Project.Root.get,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  File.IO.findHelp,
+  called from File.IO.find,
+  called from Elm.Project.Root.moveToRoot,
+  called from Elm.Project.Root.get,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  File.IO.findHelp,
+  called from File.IO.find,
+  called from Elm.Project.Root.moveToRoot,
+  called from Elm.Project.Root.get,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+*** Exception (reporting due to +RTS -xc): (THUNK), stack trace: 
+  File.IO.findHelp,
+  called from File.IO.find,
+  called from Elm.Project.Root.moveToRoot,
+  called from Elm.Project.Root.get,
+  called from Reporting.Task.try,
+  called from Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main
+-- NO elm.json FILE ------------------------------------------------------------
+
+It looks like you are starting a new Elm project. Very exciting! Try running:
+
+    elm init
+
+It will help you get set up. It is really simple!
+
+*** Exception (reporting due to +RTS -xc): (THUNK_STATIC), stack trace: 
+  Reporting.Task.run,
+  called from Make.run,
+  called from Main.make,
+  called from Terminal.Args.complex,
+  called from Main.main

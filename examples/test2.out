@@ -1,11 +1,3 @@
-(CAnd_ [
-    (CSubset_ (SetVar_21) (Union_ (Ctor_ "--Cons" [(Top_),(Top_)]) (Ctor_ "--Null" []))),
-    (CEqual_ (SetVar_19) (Union_ (SetVar_61) (SetVar_60))),
-    (CImplies_ (CSubset_ (Intersect_ (SetVar_21) (Ctor_ "--Null" [])) (Bottom_)) (CSubset_ (SetVar_60) (Bottom_))),
-    (CImplies_ (CNot_ (CSubset_ (Intersect_ (SetVar_21) (Ctor_ "--Null" [])) (Bottom_))) (CEqual_ (SetVar_60) (SetVar_24))),
-    (CEqual_ (SetVar_24) (Ctor_ "--Null" [])),
-    (CImplies_ (CSubset_ (Intersect_ (SetVar_21) (Ctor_ "--Cons" [(Top_),(Top_)])) (Bottom_)) (CSubset_ (SetVar_61) (Bottom_))),
-    (CImplies_ (CNot_ (CSubset_ (Intersect_ (SetVar_21) (Ctor_ "--Cons" [(Top_),(Top_)])) (Bottom_))) (CEqual_ (SetVar_61) (SetVar_29))),
-    (CEqual_ (SetVar_29) (Ctor_ "--Cons" [(SetVar_31),(SetVar_19)])),
-    (CEqual_ (SetVar_34) (Proj_ "--Cons" (Arity {getArity = 2}) 1 (SetVar_21))),
-    (CEqual_ (SetVar_50) (Proj_ "--Cons" (Arity {getArity = 2}) 2 (SetVar_21)))])
+Good: 
+
+cInitial: CAnd [CSubset (Var "SetVar_19") (Union (Var "SetVar_70") (Var "SetVar_69")),CImplies (CSubset (Intersect (Var "SetVar_21") (FunApp "--Null" [])) Bottom) (CSubset (Var "SetVar_69") Bottom),CImplies (CNot (CSubset (Intersect (Var "SetVar_21") (FunApp "--Null" [])) Bottom)) (CAnd [CSubset (Var "SetVar_69") (Var "SetVar_24"),CSubset (Var "SetVar_24") (Var "SetVar_69")]),CAnd [CSubset (Var "SetVar_24") (FunApp "--Null" []),CSubset (FunApp "--Null" []) (Var "SetVar_24")],CImplies (CSubset (Intersect (Var "SetVar_21") (FunApp "--Cons" [Top,Top])) Bottom) (CSubset (Var "SetVar_70") Bottom),CImplies (CNot (CSubset (Intersect (Var "SetVar_21") (FunApp "--Cons" [Top,Top])) Bottom)) (CAnd [CSubset (Var "SetVar_70") (Var "SetVar_29"),CSubset (Var "SetVar_29") (Var "SetVar_70")]),CAnd [CSubset (Var "SetVar_29") (FunApp "--Cons" [Var "SetVar_33",Var "SetVar_45"]),CSubset (FunApp "--Cons" [Var "SetVar_33",Var "SetVar_45"]) (Var "SetVar_29")],CSubset (Var "SetVar_31") (Var "SetVar_33"),CAnd [CSubset (Var "SetVar_34") (Var "ProjVar_71"),CSubset (Var "ProjVar_72") (Var "SetVar_34")],CSubset (Var "SetVar_19") (Var "SetVar_45"),CAnd [CSubset (Var "SetVar_50") (Var "ProjVar_73"),CSubset (Var "ProjVar_74") (Var "SetVar_50")],CSubset (Var "SetVar_21") (Union (FunApp "--Cons" [Top,Top]) (FunApp "--Null" [])),CImplies (CNot (CSubset (Intersect (Var "SetVar_21") (FunApp "--Cons" [Top,Top])) Bottom)) (CSubset (Var "SetVar_34") (Var "SetVar_30")),CImplies (CNot (CSubset (Intersect (Var "SetVar_21") (FunApp "--Cons" [Top,Top])) Bottom)) (CSubset (Var "SetVar_48") (Var "SetVar_48")),CImplies (CNot (CSubset (Intersect (Var "SetVar_21") (FunApp "--Cons" [Top,Top])) Bottom)) (CSubset (Var "SetVar_50") (Var "SetVar_21"))]

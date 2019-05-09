@@ -379,6 +379,7 @@ toSCLit l = do
         Proj ctor arity i l -> do
             projName <-  freshName "ProjVar"
             tform <- toSCLit l
+            -- simpleReturn $ SC.Var projName
             return $ \ f -> tform $ \ e -> SC.withProjection projName (getArity arity) (SC.Projection ctor (i-1) e) f
         Union l1 l2 -> do
             tform1 <- toSCLit l1
@@ -617,7 +618,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
                         /\ ((cNot canBeInBranch) ==> (v << Bottom)))) 
         --The result of the whole thing contains the union of all the results of the branches
         --We set this as << in case we've lost information due to recursion
-        let resultConstr = resultType ==== (unions patVars)
+        let resultConstr = resultType << (unions patVars)
         return (inputConstrs /\ resultConstr /\ CAnd branchConstrs)
     --Lambda base case: just typecheck the body if there are 0 args
 
@@ -652,8 +653,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
                 --At each application, instantiate the function's argument type to be the type of the given argument
                 --Finally, make sure the patterns of the whole expression is the pattern the function returns
                 argHelper funEffect [] accum = do
-                    unifyTypes funEffect  retEffect
-                    return accum
+                    return $  (funEffect << retEffect) /\ accum
                 argHelper (Fun dom cod :@ _) (argTy : rest) accum = do
                     liftIO $ doLog $ "Constraining that argTy " ++ (show argTy) ++ ("Smaller than " ++ show dom)
                     tellSafety pathConstr (argTy << dom) region PatError.BadArg [] --TODO something sensible for pat list here 
@@ -679,7 +679,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
         --And are instantiated at each use of x
         envExt <- constrainDef tyMap _GammaPath def
         (bodyType, bodyConstr) <- self (Map.union envExt _Gamma, pathConstr) inExpr
-        unifyTypes bodyType t 
+        unifyTypes bodyType t  
         return bodyConstr
     constrainExpr_ (Can.LetDestruct pat letExp inExp) t _GammaPath@(_Gamma, pathConstr) = do
         --TODO need to generalize?
@@ -892,7 +892,12 @@ constrainRecursiveDefs tyMap _Gamma defs = do
     defTypes <- forM defs $ \ def -> 
         case def of
             (Can.Def (A.At region name) def2 def3) -> return (name, monoschemeVar (ourType region)) 
-            (Can.TypedDef (A.At region name) def2 def3 def4 def5) -> return (name, monoschemeVar (ourType region))
+            (Can.TypedDef (A.At wholeRegion name) _ patTypes body retTipe) -> do
+                retTyEff <- addEffectVars retTipe
+                argTyEffs <- mapM addEffectVars (map snd patTypes)
+                freshVars <- forM patTypes $ \ _ -> freshVar
+                let wholeType = foldr (\ (arg, var) ret -> (Fun arg ret) :@ var) retTyEff (zip argTyEffs freshVars)
+                return  (name, monoschemeVar wholeType)
                 
     let exprs = 
             map (\ def -> case def of
