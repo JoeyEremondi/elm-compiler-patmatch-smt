@@ -74,7 +74,7 @@ doLog s = when verbose $ putStrLn s
 -- doLog s = return ()
 
 
-type Variable = UF.Point String
+type Variable = UF.Point (String, Maybe LitPattern) 
 
 newtype Arity = Arity {getArity :: Int} deriving (Show)
 
@@ -113,7 +113,7 @@ data TypeEffect_ typeEffect =
 instance Show Variable where
     show v = unsafePerformIO $ do
         v' <- UF.repr v
-        UF.get v'
+        fst <$> UF.get v'
 
 newtype Fix f = Fix (f (Fix f))
 
@@ -297,12 +297,12 @@ freshName s = do
 
 varNamed :: (ConstrainM m) => String -> m Variable
 varNamed s =
-    liftIO $ UF.fresh s
+    liftIO $ UF.fresh (s, Nothing)
 
 freshVar :: (ConstrainM m) => m Variable
 freshVar = do
     desc <- freshName "SetVar"
-    liftIO $ UF.fresh desc
+    liftIO $ UF.fresh (desc, Nothing) 
 
 instantiate :: (ConstrainM m) => EffectScheme -> m (TypeEffect, Constraint)
 instantiate (Forall boundVars tipe constr ) = do
@@ -325,9 +325,9 @@ instantiate (Forall boundVars tipe constr ) = do
             return $ (typeSubsts substFun tipe, constrSubsts substFun constr)
 
 
-generalize :: (ConstrainM m) => Gamma -> TypeEffect -> Constraint  -> Safety -> m EffectScheme
-generalize _Gamma tipe constr safety = do
-    let allFreeVars_dupes = (typeFreeVars tipe) ++ constrFreeVars constr ++ (concatMap constrFreeVars $ getSafetyConstrs safety)
+generalize :: (ConstrainM m) => Gamma -> TypeEffect -> Constraint  -> m EffectScheme
+generalize _Gamma tipe constr = do
+    let allFreeVars_dupes = (typeFreeVars tipe) ++ constrFreeVars constr
     allFreeVars <- liftIO $ List.nub <$> mapM UF.repr allFreeVars_dupes
     let schemeVars (Forall bnd (t :@ v1) sconstr) = liftIO $ do
             let vrest = constrFreeVars sconstr
@@ -335,12 +335,11 @@ generalize _Gamma tipe constr safety = do
             boundReprs <- mapM UF.repr bnd
             return $ reprs List.\\ boundReprs
     gammaFreeVars <- (List.nub . concat) <$> mapM schemeVars (Map.elems _Gamma)
-    let safetyConstr = CAnd $ getSafetyConstrs safety
-    return $  Forall (allFreeVars List.\\ gammaFreeVars) tipe (constr /\ safetyConstr)
+    return $  Forall (allFreeVars List.\\ gammaFreeVars) tipe constr
 
 
-flattenTopLevel :: (ConstrainM m) => Constraint -> m Constraint
-flattenTopLevel (CAnd l) = CAnd <$> helper l []
+optimizeConstr :: (ConstrainM m) => Constraint -> m Constraint
+optimizeConstr (CAnd l) = CAnd <$> helper l []
     where
         helper [] accum = return $ reverse accum
         helper ((CEqual (SetVar l1) (SetVar l2)) : rest) accum = do
@@ -355,7 +354,7 @@ flattenTopLevel (CAnd l) = CAnd <$> helper l []
         helper ((CSubset Bottom _) : l) accum = helper l accum
         helper ((CAnd l) : rest) accum = helper (l ++ rest) accum
         helper (h : rest) accum = helper rest (h : accum)
-flattenTopLevel c = return c
+optimizeConstr c = return c
 
 
 toSC :: (ConstrainM m) => Constraint -> m SC.CExpr
@@ -365,17 +364,21 @@ toSC c = case c of
     COr cl -> SC.COr <$> mapM toSC cl
     CNot c -> SC.CNot <$> toSC c
     (CEqual l1 l2) -> toSC ((CSubset l1 l2) /\ (CSubset l2 l1))
-    CSubset l1 l2 -> SC.CSubset <$> toSCLit l1 <*> toSCLit l2
+    CSubset l1 l2 -> SC.CSubset <$> toSCLitNoCycle [] l1 <*> toSCLitNoCycle [] l2
     CImplies c1 c2 -> SC.CImplies <$> (toSC c1) <*> (toSC c2)
     CIff c1 c2 -> SC.CIff <$> (toSC c1) <*> (toSC c2)
 
-toSCLit :: (ConstrainM m) => LitPattern -> m SC.Expr
-toSCLit l =
+toSCLitNoCycle :: (ConstrainM m) => [Variable] -> LitPattern -> m SC.Expr
+toSCLitNoCycle seen l = do
+    let toSCLit  = toSCLitNoCycle seen 
     case l of
         SetVar uf -> do
             ufRepr <- liftIO $ UF.repr uf
-            varName <- liftIO $ UF.get $ ufRepr
-            return $ SC.Var varName
+            (reprName, reprVal) <- liftIO $ UF.get $ ufRepr
+            case (ufRepr `elem` seen || Maybe.isNothing reprVal) of
+                True -> return $ SC.Var reprName 
+                False -> toSCLitNoCycle (ufRepr : seen) (Maybe.fromJust reprVal)
+            
         --Our theory doesn't support projections as expressions 
         --So we generate a fresh variable and constrain that it must contain exactly the projection
         -- Proj ctor arity i l -> do
@@ -394,9 +397,8 @@ toSCLit l =
 
 solveConstraint :: ConstrainM m => Constraint -> m (Either String ())
 solveConstraint c = do
-    flatC <- flattenTopLevel c
-    liftIO $ doLog ("Flattened top level:\n" ++ show flatC ++ "\n")
-    sc <- toSC flatC
+    liftIO $ doLog ("Flattened top level:\n" ++ show c ++ "\n")
+    sc <- toSC c
     liftIO $ putStrLn "Solving pattern match constraints"
     ret <- liftIO $ SC.solve (SC.Options "" False {-verbose-} "z3" False False False) sc
     liftIO $ putStrLn "Solved Pattern Match constraints"
@@ -474,33 +476,49 @@ addEffectVars t = do
 --     effect <- freshVar --TODO what descriptor?
 --     return $ tipe :@ effect
 
+unifyEffectVars :: (ConstrainM m) => Variable -> Variable -> m Constraint
+unifyEffectVars v1 v2 = do
+    (name1, eff1) <- liftIO $ UF.get v1
+    (name2, eff2) <- liftIO $ UF.get v2
+    case (eff1, eff2) of
+        (Nothing, _) -> do
+            liftIO $ UF.union v1 v2 (name2, eff2)
+            return CTrue
+        (_,Nothing) -> do
+            liftIO $ UF.union v1 v2 (name1, eff1)
+            return CTrue
+        (Just e1, Just e2) -> do
+            liftIO $ UF.union v1 v2 (name1, Just e1)
+            return (e1 ==== e2) 
 
-unifyTypes :: (ConstrainM m) => TypeEffect -> TypeEffect -> m ()
+
+unifyTypes :: (ConstrainM m) => TypeEffect -> TypeEffect -> m Constraint
 unifyTypes (t1 :@ v1) (t2 :@ v2) = do
-    desc <- liftIO $ UF.get v1
-    liftIO $ UF.union v1 v2 desc
-    case (t1, t2) of
-        ((TypeVar v1), _) -> return ()
-        (_, (TypeVar v1)) -> return ()
-        ((Alias t1 t2 t3 t4), _) -> return () --TODO alias unify
+    constr1 <- unifyEffectVars v1 v2
+    constr2 <- case (t1, t2) of
+        ((TypeVar v1), _) -> return CTrue
+        (_, (TypeVar v1)) -> return CTrue
+        ((Alias t1 t2 t3 t4), _) -> return CTrue --TODO alias unify
         ((App t1 t2 t3), (App t1' t2' t3')) ->
-            zipWithM_  unifyTypes t3 t3'
+            CAnd <$> zipWithM  unifyTypes t3 t3'
         ((Fun t1 t2), (Fun t1' t2')) -> do
-            unifyTypes t1 t1'
-            unifyTypes t2 t2'
-        (EmptyRecord, EmptyRecord) -> return ()
-        ((Record fields), (Record fields')) ->
-            forM_ (Map.keys fields) $ \key ->
-                unifyTypes (fields Map.! key) (fields' Map.! key)
-        (Unit, Unit) -> return ()
+            c1 <- unifyTypes t1 t1'
+            c2 <- unifyTypes t2 t2'
+            return (c1 /\ c2)
+        (EmptyRecord, EmptyRecord) -> return CTrue
+        ((Record fields), (Record fields')) -> 
+            CAnd <$>( forM (Map.keys fields) $ \key ->
+                unifyTypes (fields Map.! key) (fields' Map.! key))
+        (Unit, Unit) -> return CTrue
         ((Tuple t1 t2 mt3), (Tuple t1' t2' mt3')) -> do
-            unifyTypes t1 t1'
-            unifyTypes t2 t2'
-            case (mt3, mt3') of
-                (Nothing, Nothing) -> return ()
+            c1 <- unifyTypes t1 t1'
+            c2 <- unifyTypes t2 t2' 
+            c3 <- case (mt3, mt3') of
+                (Nothing, Nothing) -> return CTrue
                 (Just t3, Just t3') -> unifyTypes t3 t3'
+            return (c1 /\ c2 /\ c3)
         _ -> error $ "Can't unify types " ++ (show t1) ++ " and " ++ (show t2 )
-    --TODO do we need to unify sub-vars?
+    return (constr1 /\ constr2)
 
 
 type ConstrainM m = (State.MonadState (IORef Int) m, MonadIO m, MonadWriter Safety m, MonadError PatError.Error m )
@@ -755,7 +773,8 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
     let safetyList = unSafety safety
     liftIO $ doLog $  "Solving constraints for definition " ++ N.toString  x
     liftIO $ doLog $ "Got safety constraints " ++ (show $ getSafetyConstrs safety)
-    mConstraintSoln <- solveConstraint (defConstr /\ CAnd (getSafetyConstrs safety))
+    defAndSafetyConstr <- optimizeConstr (defConstr /\ CAnd (getSafetyConstrs safety)) 
+    mConstraintSoln <- solveConstraint defAndSafetyConstr
     case mConstraintSoln of
         Right () -> return ()
         Left _ -> do
@@ -774,7 +793,7 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
 
     --Now that we have types and constraints for the body, we generalize them over all free variables
     --not  occurring in Gamma, and return an environment mapping the def name to this scheme
-    scheme <- generalize (fst _GammaPath) defType defConstr safety
+    scheme <- generalize (fst _GammaPath) defType defAndSafetyConstr
     liftIO $ doLog $ "Generalized type for " ++ N.toString x ++ " is " ++ (show scheme)
     return $ Map.singleton x scheme
     where
