@@ -815,8 +815,8 @@ getProjections name arity pat = do
     projPatterns <- forM argnums $ \i -> SetVar <$> varNamed (projName ++ "_" ++ show i)
     let partMatchingCtor = pat `intersect` (Ctor name (replicate (getArity arity) Top))
     let varsMatchProj = (Ctor name projPatterns) ==== partMatchingCtor
-    let emptyIff = CAnd $ map (\proj -> (proj ==== Bottom) <==> (pat ==== Bottom)) projPatterns
-    return (_, projPatterns)
+    let emptyIff = CAnd $ map (\proj -> (proj ==== Bottom) <==> (partMatchingCtor ==== Bottom)) projPatterns
+    return (varsMatchProj /\ emptyIff, projPatterns)
 
 
 envAfterMatch :: (ConstrainM m) => Map.Map R.Region TypeEffect ->  LitPattern  -> Can.Pattern -> m (Gamma, Constraint)
