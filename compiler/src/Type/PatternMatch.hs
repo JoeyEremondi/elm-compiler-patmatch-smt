@@ -478,7 +478,7 @@ solveConstraint c = do
     logIO ("Flattened top level:\n" ++ show c ++ "\n")
     sc <- toSC c
     liftIO $ putStrLn "Solving pattern match constraints"
-    ret <- liftIO $ SC.solve (SC.Options "" verbose "z3" False False False) sc
+    ret <- liftIO $ SC.solve (SC.Options "" True "z3" False False False) sc
     liftIO $ putStrLn "Solved Pattern Match constraints"
     return ret
 
@@ -956,7 +956,7 @@ envAfterMatch tyMap matchedPat (A.At region pat)  = do
             let arity = Arity (length ctorArgPats)
             (projConstrs, subPats) <- getProjections nameString arity topPat
             (subDicts, subConstrs) <- unzip <$> zipWithM  ((envAfterMatch tyMap) ) subPats ctorArgPats
-            return $ (Map.unions subDicts, {- projConstrs /\ -} CAnd subConstrs) --TODO put back
+            return $ (Map.unions subDicts,  projConstrs /\  CAnd subConstrs) --TODO put back 
     case pat of
         Can.PVar x -> return $ (Map.singleton x (monoscheme ourType matchedPat), CTrue)
         Can.PCtor { Can._p_name = ctorName, Can._p_args = ctorArgs } ->

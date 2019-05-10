@@ -1,0 +1,733 @@
+sat
+(model 
+  (define-fun literal_3 () Bool
+    true)
+  (define-fun x_exists_35-8 () Bool
+    true)
+  (define-fun x_exists_30-0 () Bool
+    true)
+  (define-fun x_exists_7-8 () Bool
+    true)
+  (define-fun x_exists_18-3 () Bool
+    false)
+  (define-fun literal_6 () Bool
+    true)
+  (define-fun x_exists_16-5 () Bool
+    false)
+  (define-fun x_exists_9-6 () Bool
+    false)
+  (define-fun x_exists_29-4 () Bool
+    true)
+  (define-fun x_exists_34-6 () Bool
+    false)
+  (define-fun x_exists_35-1 () Bool
+    true)
+  (define-fun x_exists_34-2 () Bool
+    false)
+  (define-fun x_exists_21-8 () Bool
+    true)
+  (define-fun x_exists_35-5 () Bool
+    false)
+  (define-fun x_exists_27-7 () Bool
+    true)
+  (define-fun x_exists_29-5 () Bool
+    false)
+  (define-fun x_exists_20-4 () Bool
+    false)
+  (define-fun x_exists_14-3 () Bool
+    false)
+  (define-fun x_exists_19-3 () Bool
+    true)
+  (define-fun x_exists_14-5 () Bool
+    false)
+  (define-fun x_exists_6-0 () Bool
+    true)
+  (define-fun x_exists_25-6 () Bool
+    false)
+  (define-fun x_exists_16-1 () Bool
+    true)
+  (define-fun x_exists_27-6 () Bool
+    false)
+  (define-fun x_exists_15-2 () Bool
+    true)
+  (define-fun x_exists_13-0 () Bool
+    true)
+  (define-fun x_exists_14-7 () Bool
+    true)
+  (define-fun x_exists_29-0 () Bool
+    true)
+  (define-fun x_exists_14-0 () Bool
+    true)
+  (define-fun x_exists_14-2 () Bool
+    true)
+  (define-fun x_exists_26-5 () Bool
+    false)
+  (define-fun x_exists_4-5 () Bool
+    false)
+  (define-fun x_exists_12-2 () Bool
+    false)
+  (define-fun x_exists_0-2 () Bool
+    false)
+  (define-fun x_exists_4-2 () Bool
+    true)
+  (define-fun x_exists_24-7 () Bool
+    true)
+  (define-fun x_exists_5-4 () Bool
+    true)
+  (define-fun x_exists_0-3 () Bool
+    false)
+  (define-fun x_exists_25-8 () Bool
+    true)
+  (define-fun x_exists_23-5 () Bool
+    false)
+  (define-fun x_exists_3-6 () Bool
+    false)
+  (define-fun x_exists_20-0 () Bool
+    false)
+  (define-fun x_exists_24-6 () Bool
+    false)
+  (define-fun x_exists_3-1 () Bool
+    true)
+  (define-fun x_exists_0-6 () Bool
+    false)
+  (define-fun x_exists_20-1 () Bool
+    false)
+  (define-fun x_exists_4-0 () Bool
+    true)
+  (define-fun x_exists_2-2 () Bool
+    true)
+  (define-fun x_exists_11-3 () Bool
+    false)
+  (define-fun x_exists_27-4 () Bool
+    true)
+  (define-fun x_exists_31-4 () Bool
+    true)
+  (define-fun x_exists_3-3 () Bool
+    false)
+  (define-fun x_exists_3-4 () Bool
+    true)
+  (define-fun x_exists_0-5 () Bool
+    false)
+  (define-fun x_exists_2-6 () Bool
+    false)
+  (define-fun x_exists_11-8 () Bool
+    true)
+  (define-fun literal_14 () Bool
+    false)
+  (define-fun x_exists_5-3 () Bool
+    false)
+  (define-fun literal_21 () Bool
+    true)
+  (define-fun x_exists_33-1 () Bool
+    true)
+  (define-fun literal_17 () Bool
+    false)
+  (define-fun x_exists_19-4 () Bool
+    false)
+  (define-fun x_exists_18-5 () Bool
+    false)
+  (define-fun x_exists_20-3 () Bool
+    false)
+  (define-fun x_exists_16-2 () Bool
+    true)
+  (define-fun x_exists_16-8 () Bool
+    true)
+  (define-fun x_exists_11-1 () Bool
+    true)
+  (define-fun x_exists_5-7 () Bool
+    true)
+  (define-fun x_exists_0-1 () Bool
+    false)
+  (define-fun x_exists_31-6 () Bool
+    false)
+  (define-fun x_exists_14-8 () Bool
+    true)
+  (define-fun x_exists_9-5 () Bool
+    true)
+  (define-fun x_exists_17-4 () Bool
+    true)
+  (define-fun x_exists_29-3 () Bool
+    false)
+  (define-fun x_exists_16-0 () Bool
+    true)
+  (define-fun x_exists_6-3 () Bool
+    false)
+  (define-fun x_exists_8-1 () Bool
+    true)
+  (define-fun x_exists_24-8 () Bool
+    true)
+  (define-fun x_exists_7-4 () Bool
+    true)
+  (define-fun x_exists_9-0 () Bool
+    true)
+  (define-fun x_exists_3-8 () Bool
+    true)
+  (define-fun x_exists_1-6 () Bool
+    false)
+  (define-fun x_exists_21-0 () Bool
+    true)
+  (define-fun x_exists_12-4 () Bool
+    false)
+  (define-fun x_exists_1-1 () Bool
+    false)
+  (define-fun x_exists_11-2 () Bool
+    true)
+  (define-fun x_exists_2-7 () Bool
+    true)
+  (define-fun x_exists_32-1 () Bool
+    true)
+  (define-fun x_exists_8-7 () Bool
+    true)
+  (define-fun x_exists_5-0 () Bool
+    true)
+  (define-fun x_exists_4-3 () Bool
+    false)
+  (define-fun x_exists_23-0 () Bool
+    true)
+  (define-fun x_exists_9-2 () Bool
+    true)
+  (define-fun x_exists_23-3 () Bool
+    false)
+  (define-fun x_exists_26-3 () Bool
+    false)
+  (define-fun x_exists_23-8 () Bool
+    true)
+  (define-fun x_exists_11-5 () Bool
+    false)
+  (define-fun x_exists_3-5 () Bool
+    false)
+  (define-fun x_exists_19-7 () Bool
+    true)
+  (define-fun x_exists_26-8 () Bool
+    true)
+  (define-fun literal_8 () Bool
+    true)
+  (define-fun x_exists_25-2 () Bool
+    true)
+  (define-fun x_exists_23-7 () Bool
+    true)
+  (define-fun x_exists_17-5 () Bool
+    false)
+  (define-fun x_exists_18-7 () Bool
+    true)
+  (define-fun x_exists_11-6 () Bool
+    true)
+  (define-fun literal_4 () Bool
+    true)
+  (define-fun x_exists_32-6 () Bool
+    false)
+  (define-fun x_exists_31-3 () Bool
+    false)
+  (define-fun x_exists_18-1 () Bool
+    true)
+  (define-fun x_exists_22-5 () Bool
+    false)
+  (define-fun x_exists_33-8 () Bool
+    true)
+  (define-fun x_exists_16-3 () Bool
+    false)
+  (define-fun x_exists_15-1 () Bool
+    true)
+  (define-fun x_exists_15-7 () Bool
+    true)
+  (define-fun x_exists_28-4 () Bool
+    true)
+  (define-fun x_exists_32-8 () Bool
+    true)
+  (define-fun x_exists_11-0 () Bool
+    true)
+  (define-fun x_exists_29-1 () Bool
+    true)
+  (define-fun x_exists_25-5 () Bool
+    false)
+  (define-fun x_exists_2-4 () Bool
+    true)
+  (define-fun x_exists_0-4 () Bool
+    false)
+  (define-fun x_exists_27-5 () Bool
+    false)
+  (define-fun x_exists_25-3 () Bool
+    false)
+  (define-fun literal_20 () Bool
+    true)
+  (define-fun x_exists_21-2 () Bool
+    true)
+  (define-fun x_exists_19-0 () Bool
+    true)
+  (define-fun x_exists_20-7 () Bool
+    false)
+  (define-fun x_exists_35-7 () Bool
+    true)
+  (define-fun x_exists_8-3 () Bool
+    false)
+  (define-fun x_exists_26-2 () Bool
+    true)
+  (define-fun x_exists_8-2 () Bool
+    true)
+  (define-fun x_exists_26-6 () Bool
+    false)
+  (define-fun x_exists_7-5 () Bool
+    false)
+  (define-fun x_exists_5-5 () Bool
+    false)
+  (define-fun x_exists_4-8 () Bool
+    true)
+  (define-fun x_exists_3-7 () Bool
+    true)
+  (define-fun x_exists_14-6 () Bool
+    false)
+  (define-fun x_exists_7-6 () Bool
+    false)
+  (define-fun x_exists_2-1 () Bool
+    true)
+  (define-fun x_exists_24-2 () Bool
+    true)
+  (define-fun x_exists_0-8 () Bool
+    false)
+  (define-fun x_exists_2-5 () Bool
+    false)
+  (define-fun x_exists_28-8 () Bool
+    true)
+  (define-fun x_exists_25-1 () Bool
+    true)
+  (define-fun x_exists_16-4 () Bool
+    true)
+  (define-fun literal_10 () Bool
+    true)
+  (define-fun x_exists_21-7 () Bool
+    true)
+  (define-fun x_exists_30-2 () Bool
+    true)
+  (define-fun x_exists_28-3 () Bool
+    false)
+  (define-fun x_exists_29-7 () Bool
+    true)
+  (define-fun x_exists_6-1 () Bool
+    true)
+  (define-fun x_exists_32-0 () Bool
+    true)
+  (define-fun x_exists_15-6 () Bool
+    false)
+  (define-fun x_exists_17-8 () Bool
+    true)
+  (define-fun x_exists_31-1 () Bool
+    true)
+  (define-fun x_exists_33-2 () Bool
+    true)
+  (define-fun x_exists_8-8 () Bool
+    true)
+  (define-fun literal_15 () Bool
+    true)
+  (define-fun x_exists_15-8 () Bool
+    true)
+  (define-fun x_exists_32-3 () Bool
+    false)
+  (define-fun x_exists_33-6 () Bool
+    false)
+  (define-fun x_exists_10-8 () Bool
+    true)
+  (define-fun x_exists_13-6 () Bool
+    false)
+  (define-fun x_exists_13-7 () Bool
+    true)
+  (define-fun x_exists_10-6 () Bool
+    false)
+  (define-fun x_exists_23-6 () Bool
+    false)
+  (define-fun x_exists_23-2 () Bool
+    true)
+  (define-fun x_exists_31-5 () Bool
+    false)
+  (define-fun x_exists_24-0 () Bool
+    true)
+  (define-fun x_exists_32-5 () Bool
+    false)
+  (define-fun literal_34 () Bool
+    true)
+  (define-fun literal_19 () Bool
+    false)
+  (define-fun x_exists_34-7 () Bool
+    false)
+  (define-fun x_exists_33-7 () Bool
+    true)
+  (define-fun x_exists_16-7 () Bool
+    true)
+  (define-fun x_exists_2-3 () Bool
+    false)
+  (define-fun x_exists_28-6 () Bool
+    false)
+  (define-fun x_exists_24-4 () Bool
+    true)
+  (define-fun x_exists_20-8 () Bool
+    false)
+  (define-fun x_exists_19-1 () Bool
+    true)
+  (define-fun x_exists_25-7 () Bool
+    true)
+  (define-fun x_exists_8-4 () Bool
+    true)
+  (define-fun literal_7 () Bool
+    false)
+  (define-fun x_exists_26-7 () Bool
+    true)
+  (define-fun x_exists_7-3 () Bool
+    false)
+  (define-fun x_exists_4-4 () Bool
+    true)
+  (define-fun x_exists_1-2 () Bool
+    false)
+  (define-fun x_exists_35-0 () Bool
+    true)
+  (define-fun x_exists_21-1 () Bool
+    true)
+  (define-fun literal_35 () Bool
+    true)
+  (define-fun x_exists_18-6 () Bool
+    false)
+  (define-fun x_exists_19-6 () Bool
+    false)
+  (define-fun x_exists_8-6 () Bool
+    false)
+  (define-fun literal_25 () Bool
+    true)
+  (define-fun x_exists_25-0 () Bool
+    true)
+  (define-fun x_exists_19-8 () Bool
+    true)
+  (define-fun x_exists_24-5 () Bool
+    false)
+  (define-fun x_exists_11-4 () Bool
+    true)
+  (define-fun x_exists_12-3 () Bool
+    false)
+  (define-fun x_exists_30-1 () Bool
+    true)
+  (define-fun x_exists_10-7 () Bool
+    true)
+  (define-fun x_exists_6-4 () Bool
+    true)
+  (define-fun x_exists_6-6 () Bool
+    false)
+  (define-fun x_exists_6-8 () Bool
+    true)
+  (define-fun x_exists_4-7 () Bool
+    true)
+  (define-fun x_exists_2-0 () Bool
+    true)
+  (define-fun x_exists_24-3 () Bool
+    false)
+  (define-fun x_exists_14-1 () Bool
+    true)
+  (define-fun x_exists_13-5 () Bool
+    false)
+  (define-fun x_exists_12-6 () Bool
+    false)
+  (define-fun x_exists_15-4 () Bool
+    true)
+  (define-fun x_exists_9-3 () Bool
+    false)
+  (define-fun x_exists_29-2 () Bool
+    true)
+  (define-fun x_exists_22-3 () Bool
+    false)
+  (define-fun x_exists_27-2 () Bool
+    true)
+  (define-fun x_exists_17-7 () Bool
+    true)
+  (define-fun x_exists_9-1 () Bool
+    true)
+  (define-fun literal_18 () Bool
+    true)
+  (define-fun x_exists_29-8 () Bool
+    true)
+  (define-fun x_exists_27-3 () Bool
+    false)
+  (define-fun x_exists_13-2 () Bool
+    true)
+  (define-fun x_exists_32-4 () Bool
+    true)
+  (define-fun x_exists_17-1 () Bool
+    true)
+  (define-fun x_exists_10-0 () Bool
+    true)
+  (define-fun literal_1 () Bool
+    true)
+  (define-fun x_exists_8-0 () Bool
+    true)
+  (define-fun x_exists_20-5 () Bool
+    false)
+  (define-fun x_exists_28-1 () Bool
+    true)
+  (define-fun x_exists_18-8 () Bool
+    true)
+  (define-fun x_exists_16-6 () Bool
+    false)
+  (define-fun x_exists_10-3 () Bool
+    false)
+  (define-fun x_exists_1-7 () Bool
+    false)
+  (define-fun x_exists_1-4 () Bool
+    false)
+  (define-fun x_exists_1-8 () Bool
+    false)
+  (define-fun x_exists_21-5 () Bool
+    false)
+  (define-fun x_exists_0-7 () Bool
+    false)
+  (define-fun x_exists_1-0 () Bool
+    false)
+  (define-fun x_exists_21-6 () Bool
+    false)
+  (define-fun x_exists_10-4 () Bool
+    true)
+  (define-fun x_exists_9-8 () Bool
+    true)
+  (define-fun literal_13 () Bool
+    true)
+  (define-fun x_exists_22-6 () Bool
+    false)
+  (define-fun x_exists_15-5 () Bool
+    false)
+  (define-fun x_exists_11-7 () Bool
+    true)
+  (define-fun literal_9 () Bool
+    false)
+  (define-fun x_exists_31-7 () Bool
+    true)
+  (define-fun x_exists_27-0 () Bool
+    true)
+  (define-fun x_exists_13-8 () Bool
+    true)
+  (define-fun x_exists_12-7 () Bool
+    false)
+  (define-fun x_exists_12-8 () Bool
+    false)
+  (define-fun x_exists_28-2 () Bool
+    true)
+  (define-fun x_exists_5-8 () Bool
+    true)
+  (define-fun x_exists_31-8 () Bool
+    true)
+  (define-fun literal_28 () Bool
+    true)
+  (define-fun x_exists_18-0 () Bool
+    true)
+  (define-fun x_exists_17-6 () Bool
+    false)
+  (define-fun x_exists_12-5 () Bool
+    false)
+  (define-fun x_exists_5-1 () Bool
+    true)
+  (define-fun literal_23 () Bool
+    false)
+  (define-fun x_exists_3-2 () Bool
+    true)
+  (define-fun x_exists_5-6 () Bool
+    false)
+  (define-fun x_exists_17-2 () Bool
+    true)
+  (define-fun x_exists_19-2 () Bool
+    true)
+  (define-fun x_exists_30-5 () Bool
+    false)
+  (define-fun x_exists_17-3 () Bool
+    false)
+  (define-fun x_exists_31-0 () Bool
+    true)
+  (define-fun x_exists_13-1 () Bool
+    true)
+  (define-fun literal_22 () Bool
+    true)
+  (define-fun x_exists_22-0 () Bool
+    true)
+  (define-fun x_exists_21-4 () Bool
+    true)
+  (define-fun x_exists_35-2 () Bool
+    true)
+  (define-fun x_exists_21-3 () Bool
+    false)
+  (define-fun x_exists_6-2 () Bool
+    true)
+  (define-fun literal_29 () Bool
+    true)
+  (define-fun x_exists_12-0 () Bool
+    false)
+  (define-fun x_exists_13-3 () Bool
+    false)
+  (define-fun x_exists_32-7 () Bool
+    true)
+  (define-fun literal_26 () Bool
+    true)
+  (define-fun literal_33 () Bool
+    true)
+  (define-fun x_exists_1-3 () Bool
+    false)
+  (define-fun literal_30 () Bool
+    true)
+  (define-fun x_exists_26-4 () Bool
+    true)
+  (define-fun literal_24 () Bool
+    true)
+  (define-fun x_exists_31-2 () Bool
+    true)
+  (define-fun x_exists_30-4 () Bool
+    true)
+  (define-fun x_exists_28-0 () Bool
+    true)
+  (define-fun x_exists_7-2 () Bool
+    true)
+  (define-fun literal_32 () Bool
+    true)
+  (define-fun x_exists_20-2 () Bool
+    false)
+  (define-fun x_exists_23-4 () Bool
+    true)
+  (define-fun x_exists_34-4 () Bool
+    false)
+  (define-fun x_exists_27-1 () Bool
+    true)
+  (define-fun x_exists_33-5 () Bool
+    false)
+  (define-fun x_exists_26-0 () Bool
+    true)
+  (define-fun x_exists_17-0 () Bool
+    true)
+  (define-fun x_exists_24-1 () Bool
+    true)
+  (define-fun x_exists_32-2 () Bool
+    true)
+  (define-fun x_exists_34-3 () Bool
+    false)
+  (define-fun x_exists_18-2 () Bool
+    true)
+  (define-fun x_exists_34-1 () Bool
+    false)
+  (define-fun x_exists_10-1 () Bool
+    true)
+  (define-fun x_exists_10-2 () Bool
+    true)
+  (define-fun literal_16 () Bool
+    true)
+  (define-fun x_exists_30-8 () Bool
+    true)
+  (define-fun x_exists_22-2 () Bool
+    true)
+  (define-fun x_exists_25-4 () Bool
+    true)
+  (define-fun x_exists_10-5 () Bool
+    false)
+  (define-fun x_exists_9-4 () Bool
+    true)
+  (define-fun literal_27 () Bool
+    true)
+  (define-fun x_exists_28-7 () Bool
+    true)
+  (define-fun x_exists_34-0 () Bool
+    false)
+  (define-fun x_exists_27-8 () Bool
+    true)
+  (define-fun x_exists_9-7 () Bool
+    true)
+  (define-fun x_exists_8-5 () Bool
+    false)
+  (define-fun x_exists_28-5 () Bool
+    false)
+  (define-fun x_exists_22-8 () Bool
+    true)
+  (define-fun x_exists_6-7 () Bool
+    true)
+  (define-fun x_exists_4-1 () Bool
+    true)
+  (define-fun x_exists_4-6 () Bool
+    false)
+  (define-fun literal_11 () Bool
+    false)
+  (define-fun x_exists_7-0 () Bool
+    true)
+  (define-fun x_exists_2-8 () Bool
+    true)
+  (define-fun x_exists_30-6 () Bool
+    false)
+  (define-fun x_exists_22-7 () Bool
+    true)
+  (define-fun x_exists_30-7 () Bool
+    true)
+  (define-fun x_exists_23-1 () Bool
+    true)
+  (define-fun x_exists_26-1 () Bool
+    true)
+  (define-fun x_exists_33-3 () Bool
+    false)
+  (define-fun x_exists_13-4 () Bool
+    true)
+  (define-fun x_exists_34-8 () Bool
+    false)
+  (define-fun literal_5 () Bool
+    false)
+  (define-fun x_exists_22-1 () Bool
+    true)
+  (define-fun x_exists_22-4 () Bool
+    true)
+  (define-fun x_exists_7-1 () Bool
+    true)
+  (define-fun x_exists_6-5 () Bool
+    false)
+  (define-fun x_exists_3-0 () Bool
+    true)
+  (define-fun x_exists_0-0 () Bool
+    false)
+  (define-fun x_exists_30-3 () Bool
+    false)
+  (define-fun x_exists_5-2 () Bool
+    true)
+  (define-fun x_exists_34-5 () Bool
+    false)
+  (define-fun x_exists_35-3 () Bool
+    false)
+  (define-fun x_exists_20-6 () Bool
+    false)
+  (define-fun x_exists_19-5 () Bool
+    false)
+  (define-fun x_exists_29-6 () Bool
+    false)
+  (define-fun x_exists_7-7 () Bool
+    true)
+  (define-fun x_exists_35-4 () Bool
+    true)
+  (define-fun x_exists_33-0 () Bool
+    true)
+  (define-fun x_exists_33-4 () Bool
+    true)
+  (define-fun x_exists_35-6 () Bool
+    false)
+  (define-fun literal_2 () Bool
+    true)
+  (define-fun x_exists_12-1 () Bool
+    false)
+  (define-fun x_exists_1-5 () Bool
+    false)
+  (define-fun x_exists_18-4 () Bool
+    true)
+  (define-fun x_exists_14-4 () Bool
+    true)
+  (define-fun literal_12 () Bool
+    true)
+  (define-fun x_exists_15-0 () Bool
+    true)
+  (define-fun x_exists_15-3 () Bool
+    false)
+  (define-fun literal_0 () Bool
+    true)
+  (define-fun literal_31 () Bool
+    true)
+  (define-fun domainToBeSolved ((x!0 Bool)
+   (x!1 Bool)
+   (x!2 Bool)
+   (x!3 Bool)
+   (x!4 Bool)
+   (x!5 Bool)
+   (x!6 Bool)
+   (x!7 Bool)
+   (x!8 Bool)) Bool
+    true)
+)

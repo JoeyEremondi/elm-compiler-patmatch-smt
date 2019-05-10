@@ -27,5 +27,5 @@
 foo : (List a) -> List a
 foo list = 
   case list of
-    [] -> list
+    -- [] -> list
     (only :: []) -> list
