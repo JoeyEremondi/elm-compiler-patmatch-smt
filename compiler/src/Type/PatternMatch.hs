@@ -65,7 +65,11 @@ import qualified AST.Utils.Shader
 
 import qualified Debug.Trace as Trace
 
+import qualified Data.Graph as Graph 
+
+{-# INLINE verbose #-}
 verbose = True
+verboseSMT = verbose && False
 
 {-# INLINE trace #-}
 -- trace = Trace.trace
@@ -290,7 +294,11 @@ typeLocalVars (t :@ e) = litFreeVars e
 constrLocalVars (CSubset p1 p2) = (litFreeVars p1) ++ (litFreeVars p2)
 constrLocalVars (CEqual p1 p2) = (litFreeVars p1) ++ (litFreeVars p2)
 constrLocalVars c = []
-litLocalVars (SetVar v) = [v]
+litLocalVars (SetVar v) = unsafePerformIO $ do
+    (_, desc) <- UF.get v
+    case desc of
+        Nothing -> return [v]
+        Just e -> return $ [v] ++ litFreeVars e 
 litLocalVars l = []
 
 typeFreeVars (t :@ e) =  (litFreeVars e) ++ concatMap typeLocalVars (toList t)
@@ -365,6 +373,34 @@ subTypeVars (t :@ e) = do
     tnew <-  (mapM subTypeVars t) 
     enew <- (subLitVars e)
     return $ tnew :@ enew 
+
+constraintReferenceGraph :: (ConstrainM m) => [Variable] -> [Constraint] -> m [Constraint]
+constraintReferenceGraph initial constrs = do
+    --TODO okay to assume that all vars live, even if replaced by expr?
+    initialStrings <- fmap (map fst) $  liftIO $ mapM UF.get initial
+    allVars <- fmap (map fst) $ liftIO $ mapM UF.get $  List.nub $ initial ++ (concatMap constrFreeVars constrs)
+    let edgesFor c = do
+        let nodesForC = constrFreeVars c
+        let pairs = [(c1, c2) | c1 <- nodesForC, c2 <- nodesForC]
+        forM pairs $ \(c1, c2) -> do
+            r1 <- liftIO $ UF.get c1
+            r2 <- liftIO $ UF.get c1
+            return (fst r1, fst r2)
+    allEdges <- (List.nub . concat) <$> mapM edgesFor constrs
+    let keyPairs = zip allVars [1..]
+        keyMap  = Map.fromList keyPairs
+        initialKeys = map (keyMap Map.!  ) initialStrings
+        edgeListFor v = 
+            let i = keyMap Map.! v
+            in (v, i, List.nub [ keyMap Map.! v2 | (v',v2) <- allEdges, v == v'])
+        sccs = Graph.stronglyConnComp $  map edgeListFor allVars
+        sccIsLive scc = case scc of
+            Graph.AcyclicSCC s -> s `elem` initialStrings
+            Graph.CyclicSCC  vs -> not $ null $ vs `List.intersect` initialStrings 
+
+        
+          
+    return _   
 
 optimizeConstr :: (ConstrainM m) => TypeEffect  -> Constraint -> m (TypeEffect, Constraint)
 optimizeConstr tipe (CAnd []) = return (tipe, CTrue)
@@ -478,7 +514,7 @@ solveConstraint c = do
     logIO ("Flattened top level:\n" ++ show c ++ "\n")
     sc <- toSC c
     liftIO $ putStrLn "Solving pattern match constraints"
-    ret <- liftIO $ SC.solve (SC.Options "" verbose "z3" False False False) sc
+    ret <- liftIO $ SC.solve (SC.Options "" verboseSMT "z3" False False False) sc
     liftIO $ putStrLn "Solved Pattern Match constraints"
     return ret
 
