@@ -69,9 +69,9 @@ compile flag pkg importDict interfaces source =
 
       --Joey Eremondi
       --Disabled in place of Pattern Match Analysis
-      () <-
-        exhaustivenessCheck canonical
-      -- () <- patternMatchAnalysis canonical
+      -- () <-
+      --   exhaustivenessCheck canonical
+      () <- patternMatchAnalysis canonical
 
       graph <- Result.mapError (Error.Main localizer) $
         Optimize.optimize annotations canonical
