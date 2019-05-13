@@ -39,12 +39,13 @@ type RTV =
   Map.Map N.Name Type
 
 
-
 constrain :: RTV -> Can.Expr -> Expected Type -> IO Constraint
 constrain rtv topExpr@(A.At region expression) expected = do
-  freshVar <- mkFlexVar
-  modifyIORef Type.globalVarMap (Map.insert region freshVar)
-  let labelConstr = CEqual region (error "TODO category for equal") (Type.VarN freshVar) expected
+  let expectedType = case expected of
+        (NoExpectation tipe) ->  tipe
+        (FromContext _ _ tipe3) ->  tipe3
+        (FromAnnotation _ _ _  tipe) -> tipe
+  modifyIORef Type.globalTypeMap (Map.insert region expectedType)
   retConstr <- case expression of
         Can.VarLocal name ->
           return (CLocal region name expected)
@@ -156,7 +157,7 @@ constrain rtv topExpr@(A.At region expression) expected = do
 
         Can.Shader _uid _src glType ->
           constrainShader region glType expected
-  return (CAnd [retConstr, labelConstr])
+  return (retConstr)
 
 
 
@@ -540,15 +541,13 @@ constrainDef rtv def bodyCon =
       do  (Args vars tipe resultType (Pattern.State headers pvars revCons)) <-
             constrainArgs args
 
-          freshVar <- mkFlexVar
-          modifyIORef Type.globalVarMap (Map.insert region freshVar)
-          let labelConstr = CEqual region (error "TODO category for equal") (Type.VarN freshVar) (NoExpectation tipe)
+          modifyIORef Type.globalTypeMap (Map.insert region tipe)
 
           exprCon <-
             constrain rtv expr (NoExpectation resultType)
 
           return $
-            CAnd [labelConstr, 
+            CAnd [ --labelConstr, 
               CLet
                 { _rigidVars = []
                 , _flexVars = vars
@@ -572,16 +571,15 @@ constrainDef rtv def bodyCon =
           (TypedArgs tipe resultType (Pattern.State headers pvars revCons)) <-
             constrainTypedArgs newRtv name typedArgs srcResultType
 
-          freshVar <- mkFlexVar
-          modifyIORef Type.globalVarMap (Map.insert region freshVar)
-          let labelConstr = CEqual region (error "TODO category for equal") (Type.VarN freshVar) (NoExpectation tipe)
+          modifyIORef Type.globalTypeMap (Map.insert region tipe)
+          -- let labelConstr = CEqual region (error "TODO category for equal") (Type.VarN freshVar) (NoExpectation tipe)
 
           let expected = FromAnnotation name (length typedArgs) TypedBody resultType
           exprCon <-
             constrain newRtv expr expected
 
           return $
-            CAnd [labelConstr, 
+            CAnd [-- labelConstr, 
               CLet
                 { _rigidVars = Map.elems newRigids
                 , _flexVars = []

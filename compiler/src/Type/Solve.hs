@@ -38,7 +38,6 @@ run constraint =
 
       case errors of
         [] -> do
-          Type.computeAllTypes 
           Right <$> traverse Type.toAnnotation env
 
         _ ->

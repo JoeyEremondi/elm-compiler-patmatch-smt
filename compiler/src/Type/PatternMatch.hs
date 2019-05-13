@@ -274,13 +274,13 @@ typeSubsts :: (Variable -> Variable) -> TypeEffect -> TypeEffect
 typeSubsts sub (t :@ e) = (typeSubsts sub <$> t) :@ (litSubsts sub e)
 
 constrSubsts :: (Variable -> Variable) -> Constraint -> Constraint
-constrSubsts sub c@(CSubset p1 p2) = trace ("Subbing in subset " ++ show c) $ CSubset (litSubsts sub p1) (litSubsts sub p2)
-constrSubsts sub c@(CEqual p1 p2) = trace ("Subbing in equal " ++ show c) $ CEqual (litSubsts sub p1) (litSubsts sub p2)
-constrSubsts sub (Fix c) = trace ("Subbing in else " ++ show c) $  Fix (constrSubsts sub <$> c)
+constrSubsts sub c@(CSubset p1 p2) =  CSubset (litSubsts sub p1) (litSubsts sub p2)
+constrSubsts sub c@(CEqual p1 p2) =  CEqual (litSubsts sub p1) (litSubsts sub p2)
+constrSubsts sub (Fix c) =   Fix (constrSubsts sub <$> c)
 
 litSubsts :: (Variable -> Variable) -> LitPattern -> LitPattern
-litSubsts sub l@(SetVar v) = trace ("Subbing in lit var " ++ show l) $  SetVar $ sub v
-litSubsts sub (Fix l) = trace ("Subbing in lit else " ++ show l) $  Fix (litSubsts sub <$> l)
+litSubsts sub l@(SetVar v) =  SetVar $ sub v
+litSubsts sub (Fix l) =  Fix (litSubsts sub <$> l)
 
 -- typeSubsts :: (Variable -> Variable) -> TypeEffect -> TypeEffect
 -- typeSubsts sub (t :@ e) = oneTypeSubst sub ((oneTypeSubst sub <$> t) :@ e)
@@ -375,8 +375,8 @@ subTypeVars (t :@ e) = do
     enew <- (subLitVars e)
     return $ tnew :@ enew 
 
-constraintReferenceGraph :: (ConstrainM m) => [Variable] -> [Constraint] -> m [Constraint]
-constraintReferenceGraph initial constrs = do
+removeUnreachableConstraints :: (ConstrainM m) => [Variable] -> [Constraint] -> m [Constraint]
+removeUnreachableConstraints initial constrs = do
     --TODO okay to assume that all vars live, even if replaced by expr?
     initialStrings <- fmap (map fst) $  liftIO $ mapM UF.get initial
     allVars <- fmap (map fst) $ liftIO $ mapM UF.get $  List.nub $ initial ++ (concatMap constrFreeVars constrs)
@@ -419,17 +419,27 @@ optimizeConstr tipe (CAnd l) = do
             logIO ("After opt:\n" ++ show optimized)
             ret <- forM optimized subConstrVars
             logIO ("After second sub:\n" ++ show ret)
-            return $ removeDead ret tipe
-        removeDead l tp = 
+            removeDead ret tipe
+        removeDead clist tp = do
             let
-                occurrences = map constrFreeVars l
+                --First we remove constraints of the form
+                -- X << pat 
+                -- or the form (pat << X)
+                --where X occurs in no other constraints
+                --Since these are always trivially solveable
+                occurrences = map constrFreeVars clist
                 varIsDead v = (not $ v `elem` (typeFreeVars tp)) && (length (filter (v `elem`) occurrences) < 2)
                 constrIsDead (CSubset (SetVar v) l) = varIsDead v
                 constrIsDead (CSubset l (SetVar v)) = varIsDead v
                 constrIsDead (CEqual (SetVar v) l) = varIsDead v
                 constrIsDead (CEqual l (SetVar v)) = varIsDead v
                 constrIsDead c = False
-            in filter (not . constrIsDead) l
+            let easyFiltered = filter (not . constrIsDead) clist
+            --Then, we remove constraints contianing only variables
+            --that are unreachable from the reference graph of the type's free variables
+            -- i.e. we only want constraints relevant to the typeEffect
+            removeUnreachableConstraints (typeFreeVars tp) easyFiltered
+
         
         -- subVars :: Constraint -> m Constraint
 
@@ -640,8 +650,11 @@ unifyTypes (t1 :@ v1) (t2 :@ v2) = do
             return (c1 /\ c2)
         (EmptyRecord, EmptyRecord) -> return CTrue
         ((Record fields), (Record fields')) -> 
-            CAnd <$>( forM (Map.keys fields) $ \key ->
-                unifyTypes (fields Map.! key) (fields' Map.! key))
+            CAnd <$>( forM (Map.toList fields) $ \(key, ty1) -> do
+                let mTy2 = Map.lookup key fields'
+                case mTy2 of
+                    Nothing -> error $ "Unifying record types, couldn't find key " ++ show key ++ " in " ++ show (Map.keys fields')
+                    Just ty2 -> unifyTypes ty1 ty2 )
         (Unit, Unit) -> return CTrue
         ((Tuple t1 t2 mt3), (Tuple t1' t2' mt3')) -> do
             c1 <- unifyTypes t1 t1'
@@ -704,15 +717,15 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
     self  = constrainExpr tyMap
     constrainExpr_ ::  (ConstrainM m) => Can.Expr_ -> TypeEffect -> (Gamma, Constraint) -> m Constraint
     constrainExpr_ (Can.VarLocal name) t (_Gamma, pathConstr) = do
-        let sigma =
-                case Map.lookup name _Gamma of
-                    Nothing -> error $ "constrainExpr: name " ++ (N.toString name) ++ " not found in " ++ (show _Gamma)
-                    (Just s) -> s
-        (tipe, constr) <- instantiate sigma
-        logIO $ "Instantiating " ++ (show sigma) ++ " into " ++ (show (tipe, constr)) ++ " for var " ++ (N.toString name)
-        logIO $ "Unifying types" ++ (show t) ++ "\n  and " ++ show tipe
-        unifyTypes t tipe
-        return constr
+        case Map.lookup name _Gamma of
+            Nothing ->  return (t ==== Top ) --Might hit this for record variables
+                        -- error $ "constrainExpr: name " ++ (show name) ++ "at region " ++ (show region) ++ " not found in " ++ (show _Gamma)
+            (Just sigma) -> do
+                (tipe, constr) <- instantiate sigma
+                logIO $ "Instantiating " ++ (show sigma) ++ " into " ++ (show (tipe, constr)) ++ " for var " ++ (N.toString name)
+                logIO $ "Unifying types" ++ (show t) ++ "\n  and " ++ show tipe
+                unifyTypes t tipe
+                return constr
     constrainExpr_ e@(Can.VarTopLevel _ name) t (_Gamma, pathConstr) = --TODO what about other modules?
         case Map.lookup name _Gamma  of
             Nothing -> do
@@ -750,21 +763,20 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
         let litBranches = map (\ (Can.CaseBranch pat rhs) -> (pat, canPatToLit pat, rhs) ) branches
         --Emit a safety constraint: must cover all possible inputs by our branch patterns
         tellSafety pathConstr (inputPatterns << unions (map (\(_,b,_) -> b) litBranches)) region PatError.BadCase (map (\(a,_,_)->a) litBranches)
-        (patVars, branchConstrs) <- unzip <$>
+        branchConstrs <-
             forM litBranches (
                 \(pat, lit, rhs) -> do
-                    v <- freshVar
+                    -- v <- freshVar
                     let canBeInBranch = ( toLit inputPatterns `intersect` lit) </< Bottom
                     (newEnv, newEnvConstr) <- envAfterMatch tyMap (toLit inputPatterns) pat
                     let newPathConstr = canBeInBranch /\ pathConstr
                     (rhsTy, rhsConstrs) <- self (Map.union newEnv _Gamma, newPathConstr) rhs
-                    return (v,
-                        newEnvConstr /\ rhsConstrs /\ (canBeInBranch ==> ( rhsTy << v))
-                        /\ ((cNot canBeInBranch) ==> (v ==== Bottom))))
-        --The result of the whole thing contains the union of all the results of the branches
-        --We set this as << in case we've lost information due to recursion
-        let resultConstr = resultType << (unions patVars)
-        return (inputConstrs /\ resultConstr /\ CAnd branchConstrs)
+                    --If this branch is reachable, then we emit a constraint saying
+                    --That the overall result of the case expression contains the result of this branch
+                    --TODO make paper match this
+                    return $
+                        newEnvConstr /\ rhsConstrs /\ (canBeInBranch ==> ( rhsTy << resultType)))
+        return (inputConstrs  /\ CAnd branchConstrs)
     --Lambda base case: just typecheck the body if there are 0 args
 
     constrainExpr_ (Can.Lambda allArgPats body) t (_Gamma, pathConstr) =
@@ -1081,7 +1093,8 @@ patternMatchAnalysis modul = do
             theRef <- newIORef 0
             runCMIO theRef $ do
                 tyMapRaw <- liftIO $ readIORef Type.globalTypeMap
-                tyMap <- mapM addEffectVars tyMapRaw
+                asCan <- liftIO $ mapM Type.storedToCanType tyMapRaw
+                tyMap <- mapM addEffectVars asCan
                 helper tyMap (Can._decls modul) Map.empty
     case eitherResult of
         Left patError -> Result.throw $ Reporting.Error.Pattern [patError]

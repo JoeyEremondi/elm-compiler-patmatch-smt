@@ -45,11 +45,9 @@ add :: Can.Pattern -> E.PExpected Type -> State -> IO State
 add (A.At region pattern) expectation state = do
   let expectedType = 
         case expectation of
-          (E.PNoExpectation tipe) -> E.NoExpectation tipe
-          (E.PFromContext _ _ tipe3) -> E.NoExpectation tipe3
-  freshVar <- mkFlexVar
-  modifyIORef T.globalVarMap (Map.insert region freshVar)
-  let labelConstr = CEqual region (error "TODO category for equal") (T.VarN freshVar) expectedType
+          (E.PNoExpectation tipe) ->  tipe
+          (E.PFromContext _ _ tipe3) ->  tipe3
+  modifyIORef T.globalTypeMap (Map.insert region expectedType)
   case pattern of
     Can.PAnything ->
       return state

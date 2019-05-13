@@ -26,9 +26,8 @@ module Type.Type
   , toAnnotation
   , toErrorType
   , globalTypeMap
-  , globalVarMap
   , printAllTypes
-  , computeAllTypes
+  , storedToCanType
   )
   where
 
@@ -55,30 +54,46 @@ import System.IO.Unsafe (unsafePerformIO)
 
 
 type VarMap = Map.Map R.Region Variable
-type TypeMap = Map.Map R.Region Can.Type
+type TypeMap = Map.Map R.Region Type
 
 {-# NOINLINE globalTypeMap #-}
 globalTypeMap :: IORef TypeMap 
 globalTypeMap = (unsafePerformIO $ newIORef Map.empty)
 
-{-# NOINLINE globalVarMap #-}
-globalVarMap :: IORef VarMap 
-globalVarMap = (unsafePerformIO $ newIORef Map.empty)
+-- {-# NOINLINE globalVarMap #-}
+-- globalVarMap :: IORef VarMap 
+-- globalVarMap = (unsafePerformIO $ newIORef Map.empty)
 
 --Print the type for each expression in our hacked map
 printAllTypes :: IO [()]
 printAllTypes = do
   theTypes <- readIORef globalTypeMap
-  forM (Map.toList theTypes) $ \(region,tipe) ->
+  asCan <- mapM storedToCanType theTypes
+  forM (Map.toList asCan) $ \(region,tipe) ->
     putStrLn $ (show region) ++ " : " ++ (show tipe)
+
+storedToCanType :: Type -> IO Can.Type
+storedToCanType t = case t of
+  PlaceHolder n -> pure $ Can.TVar n
+  AliasN mod name vars tp -> storedToCanType tp
+  VarN v -> toCanType v
+  AppN mod name args -> (Can.TType mod name) <$> mapM storedToCanType args
+  FunN t1 t2 -> Can.TLambda <$> storedToCanType t1 <*> storedToCanType t2
+  EmptyRecordN -> pure $ Can.TRecord Map.empty Nothing
+  RecordN fields nm -> Can.TRecord <$> mapM storedToFieldType fields <*> (pure Nothing) --TODO?
+  UnitN -> return $ Can.TUnit
+  TupleN t1 t2 (Just t3) -> Can.TTuple <$> (storedToCanType t1) <*> (storedToCanType t2) <*> (Just <$> storedToCanType t3)
+  TupleN t1 t2 Nothing -> Can.TTuple <$> (storedToCanType t1) <*> (storedToCanType t2) <*> (pure Nothing)
+
+storedToFieldType t = (Can.FieldType 0 ) <$> storedToCanType t
 
 --Given the list of type-variables for each expression
 --Get the associated types
-computeAllTypes :: IO ()
-computeAllTypes = do
-  varMap <- readIORef globalVarMap
-  computed <- forM  varMap toCanType
-  writeIORef globalTypeMap computed
+-- computeAllTypes :: IO ()
+-- computeAllTypes = do
+--   varMap <- readIORef globalVarMap
+--   computed <- forM  varMap toCanType
+--   writeIORef globalTypeMap computed
 
 
 -- CONSTRAINTS
