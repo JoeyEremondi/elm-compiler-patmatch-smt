@@ -66,6 +66,7 @@ import qualified AST.Utils.Shader
 import qualified Debug.Trace as Trace
 
 import qualified Data.Graph as Graph 
+import qualified Data.Tree as Tree 
 
 {-# INLINE verbose #-}
 verbose = True
@@ -387,20 +388,20 @@ constraintReferenceGraph initial constrs = do
             r2 <- liftIO $ UF.get c1
             return (fst r1, fst r2)
     allEdges <- (List.nub . concat) <$> mapM edgesFor constrs
-    let keyPairs = zip allVars [1..]
-        keyMap  = Map.fromList keyPairs
-        initialKeys = map (keyMap Map.!  ) initialStrings
-        edgeListFor v = 
-            let i = keyMap Map.! v
-            in (v, i, List.nub [ keyMap Map.! v2 | (v',v2) <- allEdges, v == v'])
-        sccs = Graph.stronglyConnComp $  map edgeListFor allVars
-        sccIsLive scc = case scc of
-            Graph.AcyclicSCC s -> s `elem` initialStrings
-            Graph.CyclicSCC  vs -> not $ null $ vs `List.intersect` initialStrings 
-
-        
-          
-    return _   
+    let edgeListFor v = 
+            (v, v, List.nub [ v2 | (v',v2) <- allEdges, v == v'])
+        (graph, nodeFromVertex, vertexFromKey) = Graph.graphFromEdges $  map edgeListFor allVars
+        initialVertices = map (Maybe.fromJust . vertexFromKey) initialStrings
+        canReachForest = Graph.dfs graph initialVertices
+        nodeOf (Graph.Node a _) = a
+        reachableVertices = map ( (\(a,_,_)->a) . nodeFromVertex . nodeOf) $ toList canReachForest
+    --Now, we filter our constraints
+    --Keep a constraint if any of its free variables are reachable
+    let constraintReachable c = do
+        let vars = constrFreeVars c
+        varStrings <- fmap (map fst) $ liftIO $ forM vars UF.get
+        return $ not $ null $ List.intersect  varStrings reachableVertices
+    filterM constraintReachable constrs
 
 optimizeConstr :: (ConstrainM m) => TypeEffect  -> Constraint -> m (TypeEffect, Constraint)
 optimizeConstr tipe (CAnd []) = return (tipe, CTrue)
