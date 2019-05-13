@@ -70,7 +70,7 @@ import qualified Data.Tree as Tree
 
 {-# INLINE verbose #-}
 verbose = True
-verboseSMT = verbose && False
+verboseSMT = verbose && True
 
 {-# INLINE trace #-}
 -- trace = Trace.trace
@@ -653,7 +653,7 @@ unifyTypes (t1 :@ v1) (t2 :@ v2) = do
             CAnd <$>( forM (Map.toList fields) $ \(key, ty1) -> do
                 let mTy2 = Map.lookup key fields'
                 case mTy2 of
-                    Nothing -> error $ "Unifying record types, couldn't find key " ++ show key ++ " in " ++ show (Map.keys fields')
+                    Nothing -> return CTrue
                     Just ty2 -> unifyTypes ty1 ty2 )
         (Unit, Unit) -> return CTrue
         ((Tuple t1 t2 mt3), (Tuple t1' t2' mt3')) -> do
@@ -838,6 +838,11 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
         (bodyType, bodyConstr) <- self (Map.union envExt _Gamma, pathConstr) inExpr
         unifyTypes bodyType t
         return bodyConstr
+    constrainExpr_ (Can.LetRec defs inExpr)  t _GammaPath@(_Gamma, pathConstr) = do
+        newGamma <- constrainRecursiveDefs tyMap _Gamma defs
+        (inTy, constr) <- self (Map.union newGamma _Gamma, pathConstr) inExpr
+        unifyConstr <- unifyTypes t inTy
+        return $ constr /\ unifyConstr  
     constrainExpr_ (Can.LetDestruct pat letExp inExp) t _GammaPath@(_Gamma, pathConstr) = do
         --TODO need to generalize?
         let lit = canPatToLit pat
@@ -880,7 +885,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
     constrainExpr_ (Can.VarDebug expr1 expr2 expr3) t _GammaPath = return (t ==== Top)
     constrainExpr_ Can.Unit (_:@v) _GammaPath = return $ litUnit ==== v
     constrainExpr_ (Can.Shader expr1 expr2 expr3) t _GammaPath = return (t ==== Top )
-    constrainExpr_ _ _ _ = error $ "Impossible type-expr combo "
+    constrainExpr_ e t _ = error $ "Impossible type-expr combo " ++ (show e) ++ "  at type " ++ (show t)
 
 
 --Takes place in the IO monad, not our ConstrainM
@@ -895,7 +900,7 @@ constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
         (Can.Def (A.At wholeRegion x) funArgs body) -> do
             let wholeType =
                     case Map.lookup wholeRegion tyMap of
-                        Nothing -> error $ "constrainDef: Can't find region " ++ (show wholeRegion) ++ " in type map " ++ (show tyMap)
+                        Nothing -> error $ "constrainDef: Can't find region for " ++ show x ++ " region " ++ (show wholeRegion) ++ " in type map " ++ (show tyMap)
                         Just s-> s
             --We run in a separaelm te instance, so we get different safety constraints
             --TODO need this?
@@ -970,8 +975,8 @@ canPatToLit  (A.At info pat) =
     case pat of
         Can.PAnything -> Top
         (Can.PVar x) -> Top
-        (Can.PRecord p) -> error "TODO records"
-        (Can.PAlias p1 p2) -> error "TODO Pattern alias"
+        (Can.PRecord p) -> Top
+        (Can.PAlias p1 p2) -> Top
         Can.PUnit -> litUnit
         (Can.PTuple p1 p2 (Just p3)) -> litTriple (canPatToLit p1) (canPatToLit p2) (canPatToLit p3)
         (Can.PTuple p1 p2 Nothing) -> litPair (canPatToLit p1) (canPatToLit p2)

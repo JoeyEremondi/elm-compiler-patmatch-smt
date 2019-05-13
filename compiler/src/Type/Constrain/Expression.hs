@@ -633,10 +633,13 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
     def : otherDefs ->
       case def of
         Can.Def (A.At region name) args expr ->
-          do  let (Info flexVars flexCons flexHeaders) = flexInfo
+          do  
+              
+              let (Info flexVars flexCons flexHeaders) = flexInfo
 
               (Args newFlexVars tipe resultType (Pattern.State headers pvars revCons)) <-
                 argsHelp args (Pattern.State Map.empty flexVars [])
+              modifyIORef Type.globalTypeMap (Map.insert region tipe)
 
               exprCon <-
                 constrain rtv expr (NoExpectation resultType)
@@ -664,6 +667,7 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
 
               (TypedArgs tipe resultType (Pattern.State headers pvars revCons)) <-
                 constrainTypedArgs newRtv name typedArgs srcResultType
+              modifyIORef Type.globalTypeMap (Map.insert region tipe)
 
               exprCon <-
                 constrain newRtv expr $
