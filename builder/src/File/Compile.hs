@@ -21,6 +21,8 @@ import qualified File.Plan as Plan
 import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task
 
+import qualified System.Microtimer as Timer
+
 
 
 -- COMPILE
@@ -85,7 +87,7 @@ compileModule tell project maybeDocsPath answersMVar ifacesMVar name info =
                     let imports = makeImports project info
                     ifaces <- readMVar ifacesMVar
                     let source = Plan._src info
-                    case Compiler.compile docs pkg imports ifaces source of
+                    time <- Timer.time_ $ case Compiler.compile docs pkg imports ifaces source of
                       (_warnings, Left errors) ->
                         do  tell (Progress.CompileFileEnd name Progress.Bad)
                             let time = Plan._time info
@@ -98,6 +100,7 @@ compileModule tell project maybeDocsPath answersMVar ifacesMVar name info =
                             lock <- takeMVar ifacesMVar
                             putMVar ifacesMVar (Map.insert canonicalName elmi lock)
                             putMVar mvar (Good result)
+                    putStrLn $ "\nCompiling " ++ Plan._path info ++ " took " ++ Timer.formatSeconds time
 
       return mvar
 

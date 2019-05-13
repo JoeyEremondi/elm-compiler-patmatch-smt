@@ -69,8 +69,8 @@ import qualified Data.Graph as Graph
 import qualified Data.Tree as Tree 
 
 {-# INLINE verbose #-}
-verbose = True
-verboseSMT = verbose && True
+verbose = False
+verboseSMT = verbose && False
 
 {-# INLINE trace #-}
 -- trace = Trace.trace

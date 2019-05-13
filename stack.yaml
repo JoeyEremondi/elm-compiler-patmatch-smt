@@ -38,6 +38,7 @@ packages:
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
 extra-deps:
+ - microtimer-0.0.1.2
  - simple-smt-0.9.4
  - github : JoeyEremondi/SetConstraintsSMT
    commit: "3237b04" 

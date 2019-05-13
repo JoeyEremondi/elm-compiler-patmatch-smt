@@ -265,4 +265,5 @@ Executable elm
         utf8-string,
         vector,
         zip-archive,
-        SetConstraints
+        SetConstraints,
+        microtimer
