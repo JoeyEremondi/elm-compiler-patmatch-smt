@@ -41,7 +41,7 @@ extra-deps:
  - microtimer-0.0.1.2
  - simple-smt-0.9.4
  - github : JoeyEremondi/SetConstraintsSMT
-   commit: "3237b04" 
+   commit: "affaad9" 
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
