@@ -66,7 +66,7 @@ fromLocal name =
 fromGlobal :: ModuleName.Canonical -> N.Name -> Name
 fromGlobal (ModuleName.Canonical (Pkg.Name user project) home) name =
   Name $
-    Text.encodeUtf8Builder (Text.replace "-" "_" user)
+       "_" <> Text.encodeUtf8Builder (Text.replace "-" "_" user)
     <> "$" <> Text.encodeUtf8Builder (Text.replace "-" "_" project) -- TODO store this in a better way
     <> "$" <> N.toDotlessBuilder home
     <> "$" <> N.toBuilder name
@@ -75,7 +75,7 @@ fromGlobal (ModuleName.Canonical (Pkg.Name user project) home) name =
 fromCycle :: ModuleName.Canonical -> N.Name -> Name
 fromCycle (ModuleName.Canonical (Pkg.Name user project) home) name =
   Name $
-    Text.encodeUtf8Builder (Text.replace "-" "_" user)
+       "_" <> Text.encodeUtf8Builder (Text.replace "-" "_" user)
     <> "$" <> Text.encodeUtf8Builder (Text.replace "-" "_" project) -- TODO store this in a better way
     <> "$" <> N.toDotlessBuilder home
     <> "$cyclic$" <> N.toBuilder name

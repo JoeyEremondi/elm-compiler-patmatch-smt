@@ -154,12 +154,47 @@ serveCode file =
 serveElm :: FilePath -> Snap ()
 serveElm file =
   do  guard (takeExtension file == ".elm")
-      modifyResponse (setContentType "text/html")
-      writeBuilder =<< liftIO (compileToHtmlBuilder file)
+      rq <- getRequest
+      mode <-
+        case rqParam "debug" rq of
+          Just ["true"] ->
+            return Output.Debug
+
+          _ ->
+            return Output.Dev
+
+      case rqParam "output" rq of
+        Just ["js"] ->
+          do modifyResponse (setContentType "application/javascript")
+             writeBuilder =<< liftIO (compileToJsBuilder mode file)
+
+        _ ->
+          do modifyResponse (setContentType "text/html")
+             writeBuilder =<< liftIO (compileToHtmlBuilder mode file)
 
 
-compileToHtmlBuilder :: FilePath -> IO B.Builder
-compileToHtmlBuilder file =
+compileToJsBuilder :: Output.Mode -> FilePath -> IO B.Builder
+compileToJsBuilder mode file =
+  do  mvar1 <- newEmptyMVar
+      mvar2 <- newEmptyMVar
+
+      let reporter = Progress.Reporter (\_ -> return ()) (\_ -> return True) (putMVar mvar1)
+      let output = Just (Output.JavaScriptBuilder mvar2)
+
+      void $ Task.try reporter $
+        do  summary <- Project.getRoot
+            Project.compile mode Output.Client output Nothing summary [file]
+
+      result <- takeMVar mvar1
+      case result of
+        Just exit ->
+          return $ Generate.makePageHtml "Errors" (Just (Exit.toJson exit))
+
+        Nothing ->
+          takeMVar mvar2
+
+compileToHtmlBuilder :: Output.Mode -> FilePath -> IO B.Builder
+compileToHtmlBuilder mode file =
   do  mvar1 <- newEmptyMVar
       mvar2 <- newEmptyMVar
 
@@ -168,7 +203,7 @@ compileToHtmlBuilder file =
 
       void $ Task.try reporter $
         do  summary <- Project.getRoot
-            Project.compile Output.Dev Output.Client output Nothing summary [file]
+            Project.compile mode Output.Client output Nothing summary [file]
 
       result <- takeMVar mvar1
       case result of
@@ -261,4 +296,3 @@ mimeTypeDict =
     , ".xwd"     ==> "image/x-xwindowdump"
     , ".zip"     ==> "application/zip"
     ]
-
