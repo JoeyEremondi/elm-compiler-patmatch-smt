@@ -68,9 +68,9 @@ import qualified Debug.Trace as Trace
 import qualified Data.Graph as Graph 
 import qualified Data.Tree as Tree 
 
-{-# INLINE verbose #-}
-verbose = False
-verboseSMT = verbose && False
+-- {-# INLINE verbose #-}
+(verbose :: Bool, verboseSMT :: Bool) = read $ unsafePerformIO  $ readFile "/home/joey/gh/elm-compiler/verbose.txt"
+-- verboseSMT = True --verbose && True
 
 {-# INLINE trace #-}
 -- trace = Trace.trace
