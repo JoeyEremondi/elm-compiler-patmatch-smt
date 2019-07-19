@@ -193,8 +193,8 @@ instance Show Constraint where
     show (COr l) = "(" ++ List.intercalate " ∨ " (map show l) ++ ")"
     show (CImplies x y) = "(" ++ show x ++ " ⇒ " ++ show y ++ ")"
     show (CIff x y) = "(" ++ show x ++ " ⇔ " ++ show y ++ ")"
-    show (CNot (CSubset x y)) = show x ++ " ⊈ " ++ show y
-    show (CSubset x y) = show x ++ " ⊆ " ++ show y
+    show (CNot (CSubset x y)) = "(" ++ show x ++ " ⊈ " ++ show y ++ ")"
+    show (CSubset x y) = "(" ++show x ++ " ⊆ " ++ show y ++ ")"
     show (CEqual x y) = show x ++ " ≡ " ++ show y 
     show CTrue = "TRUE"
     show (CNot c) = "(" ++"¬" ++ show c ++ ")"
@@ -492,8 +492,8 @@ dischargeSafety comp = do
 optimizeConstr :: forall m . (ConstrainM m) => TypeEffect  -> Constraint -> Safety -> m (TypeEffect, Constraint, Safety)
 optimizeConstr tipe (CAnd []) safety = return (tipe, CTrue, safety)
 optimizeConstr topTipe (CAnd l) safety = do
-    (optimizedPairs, tInter) <-  doOpts topTipe (map (,()) l) (const $  return ())
-    (optimizedSafetyList, tret) <- doOpts tInter (unSafety safety)  dischargeSafety
+    (optimizedPairs, tInter) <-  doOpts True topTipe (map (,()) l) (const $  return ())
+    (optimizedSafetyList, tret) <- doOpts True tInter (unSafety safety)  dischargeSafety
     let optimizedSafety = Safety optimizedSafetyList
     let optimized = map fst optimizedPairs
     case (optimized == l && optimizedSafety ==  safety) of
@@ -503,8 +503,8 @@ optimizeConstr topTipe (CAnd l) safety = do
         subConstrPairs (c, info) = do
             csub <- subConstrVars c
             return (csub, info)
-        doOpts :: forall a . TypeEffect -> [(Constraint, a)] -> _ -> m ([(Constraint, a)], TypeEffect) 
-        doOpts tipe l discharge = do 
+        doOpts :: forall a . Bool -> TypeEffect -> [(Constraint, a)] -> _ -> m ([(Constraint, a)], TypeEffect) 
+        doOpts graphOpts tipe l discharge = do 
             logIO ("Initial list:\n" ++ show (map fst l))
             lSubbed <- forM l subConstrPairs
             tsubbed <- subTypeVars tipe
@@ -513,9 +513,13 @@ optimizeConstr topTipe (CAnd l) safety = do
             logIO ("After opt:\n" ++ show (map fst optimized))
             ret <- forM optimized subConstrPairs
             tret <- subTypeVars tsubbed
-            logIO ("After second sub:\n" ++ show (map fst ret))
-            deadRemoved <- removeDead ret tret discharge
-            return (deadRemoved, tret)
+            case graphOpts of
+                True -> do
+                    logIO ("After second sub:\n" ++ show (map fst ret))
+                    deadRemoved <- removeDead ret tret discharge
+                    return (deadRemoved, tret)
+                False ->
+                    return (ret, tret)
         removeDead :: [(Constraint, a)] -> TypeEffect -> _ -> m [(Constraint, a)]
         removeDead clist tp discharge = do
             let
