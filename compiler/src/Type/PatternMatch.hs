@@ -461,13 +461,24 @@ removeUnreachableConstraints initial constrs discharge = do
         let reachableFromVar1 = concatMap (\v -> Maybe.fromMaybe [] $ Map.lookup v reachabilityMap) varStrings1
         case (varStrings2 `List.intersect` reachableFromVar1) of
             [] -> return []
-            _ -> return [(pair1,pair2)]
+            _ -> do
+                liftIO $ putStrLn $ "Found connection between constraints " ++ show c1 ++ "   and    " ++ show c2
+                return [(pair1,pair2)]
 
     cEdgePairs <- (fmap concat) $  mapM  cEdgesFor [(c1,c2) | c1 <- unreachable, c2 <- unreachable]
     let cedgeListFor v =  (v, fst v,   [ v2 | ((v', _),(v2, _)) <- cEdgePairs,  fst v ==  v'])
-    let (cgraph, cnodeFromVertex, cvertexFromKey) = Graph.graphFromEdges $ map cedgeListFor unreachable
-    let ccomps =  map  (map $ (\(a,_,_) -> a) . cnodeFromVertex ) $ map toList $  Graph.components cgraph
-    forM_ ccomps discharge
+    -- liftIO $ putStrLn $ "Got edge list " ++ show (map ((\(a,b,c) -> (fst a, b, c)) . cedgeListFor) unreachable)
+    let cEdgeList = map cedgeListFor unreachable
+    let ccomps = 
+            case cEdgeList of
+                [] -> map (\x -> [x]) unreachable
+                _ -> let 
+                        (cgraph, cnodeFromVertex, cvertexFromKey) = Graph.graphFromEdges cEdgeList
+                    -- liftIO $ putStrLn $ "Connected components " 
+                    in map  (map $ (\(a,_,_) -> a) . cnodeFromVertex ) $ map toList $  Graph.components cgraph
+    forM_ ccomps $ \comp -> do
+        -- liftIO $ putStrLn $ "Discharging connected component " ++ show (map fst comp)
+        discharge comp
     -- $ \comp -> do
     --     -- logIO $ "Trying to discharge unreachable constraints " ++ show $ comp
     --     unreachSoln <- solveConstraint (CAnd $ map fst comp)
@@ -534,6 +545,7 @@ optimizeConstr topTipe (CAnd l) safety = do
                 constrIsDead (CSubset l (SetVar v)) = varIsDead v
                 constrIsDead (CEqual (SetVar v) l) = varIsDead v
                 constrIsDead (CEqual l (SetVar v)) = varIsDead v
+                constrIsDead (CImplies c1 c) = constrIsDead c --Implication is dead if conclusion is trivial
                 constrIsDead c = False
             let easyFiltered = filter (not . constrIsDead . fst ) clist
             --Then, we remove constraints contianing only variables
