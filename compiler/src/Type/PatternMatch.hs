@@ -514,7 +514,7 @@ optimizeConstr topTipe (CAnd l) safety = do
         subConstrPairs (c, info) = do
             csub <- subConstrVars c
             return (csub, info)
-        doOpts :: forall a . Bool -> TypeEffect -> [(Constraint, a)] -> _ -> m ([(Constraint, a)], TypeEffect) 
+        doOpts :: forall a . Bool -> TypeEffect -> [(Constraint, a)] -> ([(Constraint, a)] -> m ()) -> m ([(Constraint, a)], TypeEffect) 
         doOpts graphOpts tipe l discharge = do 
             logIO ("Initial list:\n" ++ show (map fst l))
             lSubbed <- forM l subConstrPairs
@@ -531,7 +531,7 @@ optimizeConstr topTipe (CAnd l) safety = do
                     return (deadRemoved, tret)
                 False ->
                     return (ret, tret)
-        removeDead :: [(Constraint, a)] -> TypeEffect -> _ -> m [(Constraint, a)]
+        removeDead :: [(Constraint, a)] -> TypeEffect -> ([(Constraint, a)] -> m ()) -> m [(Constraint, a)]
         removeDead clist tp discharge = do
             let
                 --First we remove constraints of the form
@@ -1006,16 +1006,16 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
     constrainExpr_ e t _ = error $ "Impossible type-expr combo " ++ (show e) ++ "  at type " ++ (show t)
 
 constrainDef :: (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Def ->   m Gamma
-constrainDef tyMap _GammaPath def = constrainDef_ tyMap _GammaPath (unrollDef 3 def)
+constrainDef tyMap _GammaPath def = constrainDef_ tyMap _GammaPath (unrollDef unrollLevel def)
 
 
 unrollDef :: Int -> Can.Def -> Can.Def
 unrollDef 0 d = d
-unrollDef n1 d = unrollDef (n1-1) (_ d)
+unrollDef n1 d = unrollDef (n1-1) (unrollOneLevel d)
 
 unrollOneLevel :: Can.Def -> Can.Def
-unrollOneLevel (Can.Def x args body) = (Can.Def x args _)
-unrollOneLevel (Can.TypedDef x pats patTypes body retType) = (Can.TypedDef x pats patTypes _ retType)
+unrollOneLevel (Can.Def x args body) = (Can.Def x args (esub body x body))
+unrollOneLevel (Can.TypedDef x pats patTypes body retType) = (Can.TypedDef x pats patTypes (esub body x body) retType)
 
 esub :: Can.Expr -> A.Located N.Name -> Can.Expr -> Can.Expr
 esub body var@(A.At _ x) (A.At _ (Can.VarLocal y)) | y == x  = body
