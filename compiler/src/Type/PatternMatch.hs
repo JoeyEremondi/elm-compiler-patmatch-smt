@@ -933,6 +933,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
                     logIO $ "Constraining that argTy " ++ (show argTy) ++ ("Smaller than " ++ show dom)
                     tellSafety pathConstr (argTy << dom) region PatError.BadArg [] --TODO something sensible for pat list here 
                     argHelper cod rest accum
+                argHelper fun tyList _ = error $ "Bad fun ty combo " ++ (show fun) ++ "\nAND\n" ++ (show tyList)
     constrainExpr_ (Can.If conds elseExpr) t _GammaPath = do
         (elseType, elseCond) <- self _GammaPath elseExpr
         (branchTypes, branchConds) <-
@@ -1006,19 +1007,26 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
     constrainExpr_ e t _ = error $ "Impossible type-expr combo " ++ (show e) ++ "  at type " ++ (show t)
 
 constrainDef :: (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Def ->   m Gamma
-constrainDef tyMap _GammaPath def = constrainDef_ tyMap _GammaPath (unrollDef unrollLevel def)
+constrainDef tyMap _GammaPath def = do
+    let unrolled =  unrollDef unrollLevel def
+    logIO $ if (show unrolled /= show def) then  ("Unrolled def " ++ show def ++ "       into       " ++ show unrolled) else ""
+    constrainDef_ tyMap _GammaPath unrolled
 
 
 unrollDef :: Int -> Can.Def -> Can.Def
 unrollDef 0 d = d
-unrollDef n1 d = unrollDef (n1-1) (unrollOneLevel d)
+unrollDef n1 d = unrollDef (n1-1) (unrollOneLevel d) 
 
 unrollOneLevel :: Can.Def -> Can.Def
-unrollOneLevel (Can.Def x args body) = (Can.Def x args (esub body x body))
-unrollOneLevel (Can.TypedDef x pats patTypes body retType) = (Can.TypedDef x pats patTypes (esub body x body) retType)
+unrollOneLevel (Can.Def x args body@(A.At region _)) = 
+  let bodyLam r = A.At r $ Can.Lambda args body 
+  in (Can.Def x args (esub bodyLam x body))
+unrollOneLevel (Can.TypedDef x pats patTypes body@(A.At region _) retType) = 
+  let bodyLam r = A.At r $ Can.Lambda (map fst patTypes) body
+  in (Can.TypedDef x pats patTypes (esub bodyLam x body) retType)
 
-esub :: Can.Expr -> A.Located N.Name -> Can.Expr -> Can.Expr
-esub body var@(A.At _ x) (A.At _ (Can.VarLocal y)) | y == x  = body
+esub :: (R.Region -> Can.Expr) -> A.Located N.Name -> Can.Expr -> Can.Expr
+esub body var@(A.At _ x) (A.At region (Can.VarLocal y)) | y == x  = body region
 esub body var@(A.At _ x) etop@(A.At region e) = A.At region $ esub_  e
   where
     esub_ :: Can.Expr_ -> Can.Expr_
@@ -1046,7 +1054,7 @@ esub body var@(A.At _ x) etop@(A.At region e) = A.At region $ esub_  e
             (Can.Tuple e1 e2 e3) -> Can.Tuple (self e1) (self e2) (self <$> e3)
             _ -> e
 
-dsub :: Can.Expr -> A.Located N.Name -> Can.Def -> Can.Def
+dsub :: (R.Region -> Can.Expr) -> A.Located N.Name -> Can.Def -> Can.Def
 dsub e var (Can.Def d1 d2 d3) = Can.Def d1 d2 (esub e var d3) 
 dsub e var (Can.TypedDef d1 d2 d3 d4 d5) = Can.TypedDef d1 d2 d3 (esub e var d4) d5 
 
