@@ -340,9 +340,9 @@ litLocalVars (SetVar v) = unsafePerformIO $ do
         Just e -> return $ [v] ++ litFreeVars e 
 litLocalVars l = []
 
-typeFreeVars (t :@ e) =  (litFreeVars e) ++ concatMap typeLocalVars (toList t)
-constrFreeVars (Fix c) =  concatMap constrLocalVars ((Fix c) : toList c)
-litFreeVars (Fix l) =  concatMap litLocalVars ((Fix l) : toList l)
+typeFreeVars ty@(t :@ e) =  (typeLocalVars ty) ++ concatMap typeFreeVars (toList t)
+constrFreeVars (Fix c) =  (constrLocalVars (Fix c)) ++ concatMap constrFreeVars (toList c)
+litFreeVars (Fix l) =  litLocalVars (Fix l) ++ concatMap litFreeVars ( toList l)
 safetyFreeVars (Safety l) = concatMap  (constrFreeVars . fst ) l
 -- schemeFreeVars (Forall v t c  ) =  (typeFreeVars t) ++ (constrFreeVars c) 
 
@@ -422,11 +422,11 @@ subTypeVars (t :@ e) = do
     enew <- (subLitVars e)
     return $ tnew :@ enew 
 
-removeUnreachableConstraints :: (ConstrainM m) => [Variable] -> [(Constraint, a)] -> ([(Constraint,a)] -> m () )-> m [(Constraint, a)]
-removeUnreachableConstraints initial constrs discharge = do
+removeUnreachableConstraints :: (ConstrainM m) => [Variable] -> [(Constraint, a)] -> [Constraint] -> ([(Constraint,a)] -> m () )-> m [(Constraint, a)]
+removeUnreachableConstraints initial candidateConstrs allConstrs discharge = do
     --TODO okay to assume that all vars live, even if replaced by expr?
     initialStrings <- fmap (map fst) $  liftIO $ mapM UF.get initial
-    allVars <- fmap (map fst) $ liftIO $ mapM UF.get $  List.nub $ initial ++ (concatMap (constrFreeVars . fst ) constrs)
+    allVars <- fmap (map fst) $ liftIO $ mapM UF.get $  List.nub $ initial ++ (concatMap (constrFreeVars  ) allConstrs)
     let edgesFor c = do
         let nodesForC = constrFreeVars c
         let pairs = [(c1, c2) | c1 <- nodesForC, c2 <- nodesForC]
@@ -434,7 +434,7 @@ removeUnreachableConstraints initial constrs discharge = do
             r1 <- liftIO $ UF.get c1
             r2 <- liftIO $ UF.get c1
             return (fst r1, fst r2)
-    allEdges <- (List.nub . concat) <$> mapM (edgesFor . fst)  constrs
+    allEdges <- (List.nub . concat) <$> mapM (edgesFor )  allConstrs
     let edgeListFor v = 
             (v, v, List.nub [ v2 | (v',v2) <- allEdges, v == v'])
         (graph, nodeFromVertex, vertexFromKey) = Graph.graphFromEdges $  map edgeListFor allVars
@@ -451,8 +451,8 @@ removeUnreachableConstraints initial constrs discharge = do
         let vars = constrFreeVars c
         varStrings <- fmap (map fst) $ liftIO $ forM vars UF.get
         return $ not $ null $ List.intersect  varStrings reachableVertices
-    reachable <- filterM (constraintReachable . fst ) constrs
-    unreachable <- filterM ( \ x -> fmap not $ constraintReachable $ fst x) constrs
+    reachable <- filterM (constraintReachable . fst ) candidateConstrs
+    unreachable <- filterM ( \ x -> fmap not $ constraintReachable $ fst x) candidateConstrs
     let cEdgesFor (pair1@(c1,_), pair2@(c2, _)) = do
         let vars1 = constrFreeVars c1
             vars2 = constrFreeVars c2
@@ -474,7 +474,7 @@ removeUnreachableConstraints initial constrs discharge = do
                 [] -> map (\x -> [x]) unreachable
                 _ -> let 
                         (cgraph, cnodeFromVertex, cvertexFromKey) = Graph.graphFromEdges cEdgeList
-                    -- liftIO $ putStrLn $ "Connected components " 
+                    -- liftIO $ putStrLn $ "Connected components "  
                     in map  (map $ (\(a,_,_) -> a) . cnodeFromVertex ) $ map toList $  Graph.components cgraph
     forM_ ccomps $ \comp -> do
         -- liftIO $ putStrLn $ "Discharging connected component " ++ show (map fst comp)
@@ -503,8 +503,9 @@ dischargeSafety comp = do
 optimizeConstr :: forall m . (ConstrainM m) => TypeEffect  -> Constraint -> Safety -> m (TypeEffect, Constraint, Safety)
 optimizeConstr tipe (CAnd []) safety = return (tipe, CTrue, safety)
 optimizeConstr topTipe (CAnd l) safety = do
-    (optimizedPairs, tInter) <-  doOpts True topTipe (map (,()) l) (const $  return ())
-    (optimizedSafetyList, tret) <- doOpts True tInter (unSafety safety)  dischargeSafety
+    let totalList = ((map fst $ unSafety safety) ++ l)
+    (optimizedPairs, tInter) <-  doOpts True topTipe (map (,()) l) totalList (const $  return ())
+    (optimizedSafetyList, tret) <- doOpts True tInter (unSafety safety) totalList  dischargeSafety
     let optimizedSafety = Safety optimizedSafetyList
     let optimized = map fst optimizedPairs
     case (optimized == l && optimizedSafety ==  safety) of
@@ -514,8 +515,8 @@ optimizeConstr topTipe (CAnd l) safety = do
         subConstrPairs (c, info) = do
             csub <- subConstrVars c
             return (csub, info)
-        doOpts :: forall a . Bool -> TypeEffect -> [(Constraint, a)] -> ([(Constraint, a)] -> m ()) -> m ([(Constraint, a)], TypeEffect) 
-        doOpts graphOpts tipe l discharge = do 
+        doOpts :: forall a . Bool -> TypeEffect -> [(Constraint, a)] -> [Constraint] -> ([(Constraint, a)] -> m ()) -> m ([(Constraint, a)], TypeEffect) 
+        doOpts graphOpts tipe l totalList discharge = do 
             logIO ("Initial list:\n" ++ show (map fst l))
             lSubbed <- forM l subConstrPairs
             tsubbed <- subTypeVars tipe
@@ -527,19 +528,21 @@ optimizeConstr topTipe (CAnd l) safety = do
             case graphOpts of
                 True -> do
                     logIO ("After second sub:\n" ++ show (map fst ret))
-                    deadRemoved <- removeDead ret tret discharge
+                    deadRemoved <- removeDead ret totalList tret discharge
                     return (deadRemoved, tret)
                 False ->
                     return (ret, tret)
-        removeDead :: [(Constraint, a)] -> TypeEffect -> ([(Constraint, a)] -> m ()) -> m [(Constraint, a)]
-        removeDead clist tp discharge = do
+        removeDead :: [(Constraint, a)] -> [Constraint] -> TypeEffect -> ([(Constraint, a)] -> m ()) -> m [(Constraint, a)]
+        removeDead clist totalList tp discharge = do
             let
                 --First we remove constraints of the form
                 -- X << pat 
                 -- or the form (pat << X)
                 --where X occurs in no other constraints
                 --Since these are always trivially solveable
-                occurrences = map (constrFreeVars . fst ) clist
+                occurrences = map (constrFreeVars ) totalList
+            logIO $ "All occurrences: " ++ show (zip3 totalList (map (\(Fix c) -> toList c) totalList) occurrences)
+            let 
                 varIsDead v = (not $ v `elem` (typeFreeVars tp)) && (length (filter (v `elem`) occurrences) < 2)
                 constrIsDead (CSubset (SetVar v) l) = varIsDead v
                 constrIsDead (CSubset l (SetVar v)) = varIsDead v
@@ -547,12 +550,13 @@ optimizeConstr topTipe (CAnd l) safety = do
                 constrIsDead (CEqual l (SetVar v)) = varIsDead v
                 constrIsDead (CImplies c1 c) = constrIsDead c --Implication is dead if conclusion is trivial
                 constrIsDead c = False
-            let easyFiltered = filter (not . constrIsDead . fst ) clist
+            let (easyFiltered, easyDeleted) = List.partition (not . constrIsDead . fst ) clist
             --Then, we remove constraints contianing only variables
             --that are unreachable from the reference graph of the type's free variables
             -- i.e. we only want constraints relevant to the typeEffect
-            logIO $ "Filtering out varibles " ++ show (map fst easyFiltered) 
-            removeUnreachableConstraints (typeFreeVars tp) easyFiltered discharge
+            logIO $ "Easy filter deleting: " ++ show (map fst easyDeleted) 
+            logIO $ "After filtering, giving to graph opt: " ++ show (map fst easyFiltered) 
+            removeUnreachableConstraints (typeFreeVars tp) easyFiltered totalList discharge
 
         
         -- subVars :: Constraint -> m Constraint
@@ -748,7 +752,7 @@ unifyEffectVars v1 v2 = do
             return CTrue
         (Just e1, Just e2) -> do
             liftIO $ UF.union v1 v2 (name1, Just e1)
-            return (e1 ==== e2) 
+            return (e1 ==== e2)  
 
 
 unifyTypes :: (ConstrainM m) => TypeEffect -> TypeEffect -> m Constraint
@@ -877,11 +881,26 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
                 return (t ==== Top)
         return $ constr1 /\ constr2 /\ opConstr --TODO built-in types for operators  
     constrainExpr_ (Can.Case discr branches) resultType (_Gamma, pathConstr) = do
+        let 
+            unionTypes = 
+                Maybe.catMaybes $ (flip map) branches ( \(Can.CaseBranch pat _) -> 
+                        case pat of
+                            A.At _ (Can.PCtor _ _ union _ _ _) -> Just union 
+                            _ -> Nothing )
+            theUnionType = 
+                case unionTypes of 
+                    [] -> Nothing
+                    (h:_) -> Just h
         (inputPatterns, inputConstrs) <- self (_Gamma, pathConstr) discr
         --TODO negate previous branches
         let litBranches = map (\ (Can.CaseBranch pat rhs) -> (pat, canPatToLit pat, rhs) ) branches
         --Emit a safety constraint: must cover all possible inputs by our branch patterns
-        tellSafety pathConstr (inputPatterns << unions (map (\(_,b,_) -> b) litBranches)) region PatError.BadCase (map (\(a,_,_)->a) litBranches)
+        let safetyRHS = unions (map (\(_,b,_) -> b) litBranches)
+        let theSafetyConstr = 
+                case theUnionType of
+                    Nothing -> CTrue
+                    Just u -> (inputPatterns << (safetyRHS `Intersect` unionToLitPattern u)) 
+        tellSafety pathConstr theSafetyConstr region PatError.BadCase (map (\(a,_,_)->a) litBranches)
         branchConstrs <-
             forM litBranches (
                 \(pat, lit, rhs) -> do
@@ -1093,6 +1112,7 @@ constrainDef_ tyMap _GammaPath@(_Gamma, pathConstr) def = do
     --We check that each safety constraint in this definition is compatible with the other constraints
     let safetyList = unSafety theSafety
     logIO $  "Solving constraints for definition " ++ N.toString  x
+    logIO $ N.toString  x ++ ": Got regular constraints " ++ (show $ defConstr)
     logIO $ N.toString  x ++ ": Got safety constraints " ++ (show $ getSafetyConstrs theSafety)
     -- (optimizedDefType , optimizedDefConstr, optimizedDefSafety) <- optimizeConstr defType (defConstr )
     logIO $ "Getting optimized constraints for scheme"
@@ -1180,6 +1200,10 @@ defBoundVars (Can.TypedDef (A.At _ x) _ argPatTypes _ _) =
     let 
         argPats = map fst argPatTypes
     in x:(concatMap patternFreeVars argPats)
+
+unionToLitPattern :: Can.Union -> LitPattern
+unionToLitPattern u = intersects $ (flip map) (Can._u_alts u) $
+     \(Can.Ctor n _ _ argTypes ) -> Ctor (N.toString n) (map (const Top) argTypes)
 
 getProjections :: (ConstrainM m) => String -> Arity -> LitPattern -> m (Constraint, [LitPattern])
 getProjections name arity pat = do
