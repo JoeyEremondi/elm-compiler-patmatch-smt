@@ -820,11 +820,12 @@ tellSafety pathConstr x r context pats = tell $ Safety [(pathConstr ==> x, (r, c
 --Traverse that expression and generate the constraints that, when solved, 
 -- give the possible patterns for each effect variable.
 -- Emits "safety constraints" using the Writer monad
-constrainExpr :: (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Expr ->   m (TypeEffect,  Constraint)
+constrainExpr :: (ConstrainM m) => Map.Map R.Region Can.Type -> (Gamma, Constraint) -> Can.Expr ->   m (TypeEffect,  Constraint)
 constrainExpr tyMap _GammaPath (A.At region expr)  = do
     logIO ("Constraining exprssion " ++ show expr)
     case Map.lookup region tyMap of
-        Just ty -> do
+        Just rawty -> do
+            ty <- addEffectVars rawty
             c <- constrainExpr_ expr ty _GammaPath
             return (ty, c)
         Nothing -> error "Region not in type map"
@@ -1006,7 +1007,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
     constrainExpr_ (Can.Shader expr1 expr2 expr3) t _GammaPath = return (t ==== Top )
     constrainExpr_ e t _ = error $ "Impossible type-expr combo " ++ (show e) ++ "  at type " ++ (show t)
 
-constrainDef :: (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Def ->   m Gamma
+constrainDef :: (ConstrainM m) => Map.Map R.Region Can.Type -> (Gamma, Constraint) -> Can.Def ->   m Gamma
 constrainDef tyMap _GammaPath def = do
     let unrolled =  unrollDef unrollLevel def
     logIO $ if (show unrolled /= show def) then  ("Unrolled def " ++ show def ++ "       into       " ++ show unrolled) else ""
@@ -1061,17 +1062,17 @@ dsub e var (Can.TypedDef d1 d2 d3 d4 d5) = Can.TypedDef d1 d2 d3 (esub e var d4)
 --Takes place in the IO monad, not our ConstrainM
 --Because we want to generate a separate set of safety constraints for this definition
 --TODO check all this
-constrainDef_ :: (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Def ->   m Gamma
+constrainDef_ :: (ConstrainM m) => Map.Map R.Region Can.Type -> (Gamma, Constraint) -> Can.Def ->   m Gamma
 constrainDef_ tyMap _GammaPath@(_Gamma, pathConstr) def = do
     theRef <- State.get
     (x, defType, defConstr, theSafety) <- case def of
         --Get the type of the body, and add it into the environment as a monoscheme
         --To start our argument-processing loop
         (Can.Def (A.At wholeRegion x) funArgs body) -> do
-            let wholeType =
+            wholeType <-
                     case Map.lookup wholeRegion tyMap of
                         Nothing -> error $ "constrainDef: Can't find region for " ++ show x ++ " region " ++ (show wholeRegion) ++ " in type map " ++ (show tyMap)
-                        Just s-> s
+                        Just s-> addEffectVars s
             --We run in a separaelm te instance, so we get different safety constraints
             --TODO need this?
             (exprConstr, safety) <- unpackEither $ liftIO $ runCMIO theRef $ constrainDef_  funArgs body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
@@ -1191,13 +1192,12 @@ getProjections name arity pat = do
     return (varsMatchProj /\ emptyIff, projPatterns)
 
 
-envAfterMatch :: (ConstrainM m) => Map.Map R.Region TypeEffect ->  LitPattern  -> Can.Pattern -> m (Gamma, Constraint)
+envAfterMatch :: (ConstrainM m) => Map.Map R.Region Can.Type ->  LitPattern  -> Can.Pattern -> m (Gamma, Constraint)
 envAfterMatch tyMap matchedPat (A.At region pat)  = do
-    let
-        ourType =
+    ourType <-
             case Map.lookup region tyMap of
                 Nothing -> error $ "envAfterMatch: Can't find region " ++ (show region) ++ " in type map " ++ (show tyMap)
-                Just s-> s
+                Just s-> addEffectVars s
     let ctorProjectionEnvs  topPat nameString ctorArgPats = do
             let arity = Arity (length ctorArgPats)
             (projConstrs, subPats) <- getProjections nameString arity topPat
@@ -1259,15 +1259,17 @@ litInt i = Ctor ("PatMatch_" ++ show i) []
 --     0 -> Ctor ctorZero []
 --     i | i > 0 -> Ctor ctorSucc [litNat (i-1)]
 
-constrainRecursiveDefs :: (ConstrainM m) => Map.Map R.Region TypeEffect -> Gamma -> [Can.Def] -> m Gamma
+constrainRecursiveDefs :: (ConstrainM m) => Map.Map R.Region Can.Type -> Gamma -> [Can.Def] -> m Gamma
 constrainRecursiveDefs tyMap _Gamma defs = do
     let ourType region =
             case Map.lookup region tyMap of
                 Nothing -> error $ "constrainRecursiveDefs: Can't find region " ++ (show region) ++ " in type map " ++ (show tyMap)
-                Just s-> s
+                Just s-> addEffectVars s
     defTypes <- forM defs $ \ def ->
         case def of
-            (Can.Def (A.At region name) def2 def3) -> return (name, monoschemeVar (ourType region))
+            (Can.Def (A.At region name) def2 def3) -> do
+                ourActualType <- (ourType region)
+                return (name, monoschemeVar ourActualType)
             (Can.TypedDef (A.At wholeRegion name) _ patTypes body retTipe) -> do
                 retTyEff <- addEffectVars retTipe
                 argTyEffs <- mapM addEffectVars (map snd patTypes)
@@ -1290,8 +1292,7 @@ patternMatchAnalysis modul = do
             theRef <- newIORef 0
             runCMIO theRef $ do
                 tyMapRaw <- liftIO $ readIORef Type.globalTypeMap
-                asCan <- liftIO $ mapM Type.storedToCanType tyMapRaw
-                tyMap <- mapM addEffectVars asCan
+                tyMap <- liftIO $ mapM Type.storedToCanType tyMapRaw
                 helper tyMap (Can._decls modul) Map.empty
     case eitherResult of
         Left patError -> Result.throw $ Reporting.Error.Pattern [patError]
