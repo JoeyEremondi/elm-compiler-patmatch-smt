@@ -69,10 +69,10 @@ import qualified Debug.Trace as Trace
 import qualified Data.Graph as Graph 
 import qualified Data.Tree as Tree 
 
-import Data.Bifunctor (first)
+import Data.Bifunctor (first, bimap)
 
 -- {-# INLINE verbose #-}
-(verbose :: Bool, verboseSMT :: Bool) = read $ unsafePerformIO  $ readFile "/home/joey/gh/elm-compiler/verbose.txt"
+(verbose :: Bool, verboseSMT :: Bool, unrollLevel :: Int) = read $ unsafePerformIO  $ readFile "/home/joey/gh/elm-compiler/verbose.txt"
 -- verboseSMT = True --verbose && True
 
 {-# INLINE trace #-}
@@ -1005,12 +1005,56 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
     constrainExpr_ (Can.Shader expr1 expr2 expr3) t _GammaPath = return (t ==== Top )
     constrainExpr_ e t _ = error $ "Impossible type-expr combo " ++ (show e) ++ "  at type " ++ (show t)
 
+constrainDef :: (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Def ->   m Gamma
+constrainDef tyMap _GammaPath def = constrainDef_ tyMap _GammaPath (unrollDef 3 def)
+
+
+unrollDef :: Int -> Can.Def -> Can.Def
+unrollDef 0 d = d
+unrollDef n1 d = unrollDef (n1-1) (_ d)
+
+unrollOneLevel :: Can.Def -> Can.Def
+unrollOneLevel (Can.Def x args body) = (Can.Def x args _)
+unrollOneLevel (Can.TypedDef x pats patTypes body retType) = (Can.TypedDef x pats patTypes _ retType)
+
+esub :: Can.Expr -> A.Located N.Name -> Can.Expr -> Can.Expr
+esub body var@(A.At _ x) (A.At _ (Can.VarLocal y)) | y == x  = body
+esub body var@(A.At _ x) etop@(A.At region e) = A.At region $ esub_  e
+  where
+    esub_ :: Can.Expr_ -> Can.Expr_
+    esub_ e = 
+        let self = esub body var
+        in case e of
+            (Can.List es) -> Can.List (map self es)
+            (Can.Negate e) -> Can.Negate $ self e
+            (Can.Binop e1 e2 e3 e4 e5 e6) -> Can.Binop e1 e2 e3 e4 (self e5) (self e6)
+            (Can.Lambda args e2) -> 
+                if elem x (concatMap patternFreeVars args)
+                    then e
+                    else Can.Lambda args (self e2)
+            (Can.Call e1 e2) -> Can.Call (self e1) (map self e2)
+            (Can.If e1 e2) -> Can.If (map (bimap self self) e1) (self e2)
+            (Can.Let d e2) -> Can.Let (dsub body var d) (if x `elem` (defBoundVars d) then e2 else self e2)
+            (Can.LetRec ds e2) -> if x `elem` (concatMap defBoundVars ds) then e else Can.LetRec (map (dsub body var) ds) (self e2)
+            (Can.LetDestruct e1 e2 e3) -> 
+                Can.LetDestruct e1 (self e2) $ if x `elem` (patternFreeVars e1) then e3 else (self e3)
+            (Can.Case e1 branches) -> Can.Case (self e1) $ (flip map) branches $ \br@(Can.CaseBranch pat rhs) ->
+                (if x `elem` (patternFreeVars pat) then br else Can.CaseBranch pat (self rhs))
+            (Can.Access e1 e2) -> Can.Access (self e1) e2
+            (Can.Update e1 e2 e3) -> Can.Update e1 (self e2) e3
+            (Can.Record e) -> Can.Record $ Map.map self e
+            (Can.Tuple e1 e2 e3) -> Can.Tuple (self e1) (self e2) (self <$> e3)
+            _ -> e
+
+dsub :: Can.Expr -> A.Located N.Name -> Can.Def -> Can.Def
+dsub e var (Can.Def d1 d2 d3) = Can.Def d1 d2 (esub e var d3) 
+dsub e var (Can.TypedDef d1 d2 d3 d4 d5) = Can.TypedDef d1 d2 d3 (esub e var d4) d5 
 
 --Takes place in the IO monad, not our ConstrainM
 --Because we want to generate a separate set of safety constraints for this definition
 --TODO check all this
-constrainDef :: (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Def ->   m Gamma
-constrainDef tyMap _GammaPath@(_Gamma, pathConstr) def = do
+constrainDef_ :: (ConstrainM m) => Map.Map R.Region TypeEffect -> (Gamma, Constraint) -> Can.Def ->   m Gamma
+constrainDef_ tyMap _GammaPath@(_Gamma, pathConstr) def = do
     theRef <- State.get
     (x, defType, defConstr, theSafety) <- case def of
         --Get the type of the body, and add it into the environment as a monoscheme
@@ -1107,6 +1151,26 @@ canPatToLit  (A.At info pat) =
         (Can.PStr s) -> litString s
         (Can.PInt i) -> litInt i
         Can.PCtor { Can._p_name = ctorName, Can._p_args = ctorArgs } -> Ctor (N.toString ctorName) (map (canPatToLit . Can._arg) ctorArgs)
+
+patternFreeVars ::  Can.Pattern -> [N.Name]
+patternFreeVars  (A.At info pat) =
+    case pat of
+        (Can.PVar x) -> [x]
+        (Can.PRecord p) -> p
+        (Can.PAlias p1 p2) -> p2 : patternFreeVars p1
+        (Can.PTuple p1 p2 (Just p3)) -> (patternFreeVars p1) ++ (patternFreeVars p2) ++ (patternFreeVars p3)
+        (Can.PTuple p1 p2 Nothing) -> (patternFreeVars p1) ++ (patternFreeVars p2)
+        (Can.PList plist) -> (concatMap patternFreeVars plist)
+        (Can.PCons p1 p2) -> (patternFreeVars p1) ++ (patternFreeVars p2)
+        Can.PCtor { Can._p_name = ctorName, Can._p_args = ctorArgs } ->  concatMap (patternFreeVars . Can._arg) ctorArgs
+        _ -> []
+
+defBoundVars :: Can.Def -> [N.Name]
+defBoundVars (Can.Def (A.At _ x) argPats _) = x:(concatMap patternFreeVars argPats)
+defBoundVars (Can.TypedDef (A.At _ x) _ argPatTypes _ _) = 
+    let 
+        argPats = map fst argPatTypes
+    in x:(concatMap patternFreeVars argPats)
 
 getProjections :: (ConstrainM m) => String -> Arity -> LitPattern -> m (Constraint, [LitPattern])
 getProjections name arity pat = do
