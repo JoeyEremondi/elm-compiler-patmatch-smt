@@ -880,8 +880,19 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
                 logIO ("TOP for binary operator " ++ show e ++ ", var " ++ show t)
                 return (t ==== Top)
         return $ constr1 /\ constr2 /\ opConstr --TODO built-in types for operators  
-    constrainExpr_ (Can.Case discr branches) resultType (_Gamma, pathConstr) = do
-        let 
+    constrainExpr_ (Can.Case discr@(A.At dloc _) branches) resultType (_Gamma, pathConstr) = do
+        (inputPatterns, inputConstrs) <- self (_Gamma, pathConstr) discr
+         
+        let
+            discrType = 
+                case Map.lookup dloc tyMap  of
+                    Just tipe -> tipe
+                    Nothing -> Can.TUnit
+            getBranchPat (Can.CaseBranch pat _) = pat  
+            patPairs = concatMap (\(Can.CaseBranch pat _) -> unionTypePairs 1 pat) branches
+            (depths, pairs) = unzip patPairs
+            maxDepth = maximum (0 : depths)
+            unionMap = Map.fromList pairs
             unionTypes = 
                 Maybe.catMaybes $ (flip map) branches ( \(Can.CaseBranch pat _) -> 
                         case pat of
@@ -891,15 +902,17 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
                 case unionTypes of 
                     [] -> Nothing
                     (h:_) -> Just h
-        (inputPatterns, inputConstrs) <- self (_Gamma, pathConstr) discr
+        logIO $ "Max depth " ++ show maxDepth ++ " with pair map " ++ show unionMap ++ "for patterns " ++ (show $ map getBranchPat branches) ++ "\n"
+        
         --TODO negate previous branches
         let litBranches = map (\ (Can.CaseBranch pat rhs) -> (pat, canPatToLit pat, rhs) ) branches
         --Emit a safety constraint: must cover all possible inputs by our branch patterns
         let safetyRHS = unions (map (\(_,b,_) -> b) litBranches)
+        --We only need to cover patterns that are possible for the given datatypes
         let theSafetyConstr = 
                 case theUnionType of
                     Nothing -> CTrue
-                    Just u -> (inputPatterns << (safetyRHS `Intersect` unionToLitPattern u)) 
+                    Just u -> ((inputPatterns `intersect` unionToLitPattern maxDepth unionMap u discrType) << (safetyRHS )) 
         tellSafety pathConstr theSafetyConstr region PatError.BadCase (map (\(a,_,_)->a) litBranches)
         branchConstrs <-
             forM litBranches (
@@ -1201,9 +1214,49 @@ defBoundVars (Can.TypedDef (A.At _ x) _ argPatTypes _ _) =
         argPats = map fst argPatTypes
     in x:(concatMap patternFreeVars argPats)
 
-unionToLitPattern :: Can.Union -> LitPattern
-unionToLitPattern u = intersects $ (flip map) (Can._u_alts u) $
-     \(Can.Ctor n _ _ argTypes ) -> Ctor (N.toString n) (map (const Top) argTypes)
+unionTypePairs ::  Int -> Can.Pattern -> [(Int, (N.Name,Can.Union) )]
+unionTypePairs depth (A.At info pat) =
+    case pat of
+        Can.PCtor { Can._p_type = typeName, Can._p_union = u, Can._p_args = ctorArgs } -> 
+            (depth, (typeName, u)) : concatMap (unionTypePairs (depth + 1)) ( map Can._arg ctorArgs)
+        (Can.PVar x) -> [] 
+        (Can.PRecord p) -> []
+        (Can.PAlias p1 p2) -> unionTypePairs (depth+1) p1
+        (Can.PTuple p1 p2 (Just p3)) -> (unionTypePairs (depth + 1) p1) ++ (unionTypePairs (depth + 1) p2) ++ (unionTypePairs (depth + 1) p3)
+        (Can.PTuple p1 p2 Nothing) -> (unionTypePairs (depth + 1) p1) ++ (unionTypePairs (depth + 1) p2)
+        (Can.PList plist) -> (concatMap (unionTypePairs (depth + 1)) plist)
+        (Can.PCons p1 p2) -> (unionTypePairs (depth + 1) p1) ++ (unionTypePairs (depth + 1) p2)
+        _ -> []
+
+tsub :: Map.Map N.Name Can.Type -> Can.Type -> Can.Type
+tsub varMap t = 
+    let
+        self = tsub varMap
+    in case t of
+        (Can.TLambda t1 t2) -> Can.TLambda (self t1) (self t2)
+        (Can.TVar n) -> case Map.lookup n varMap of
+            Just tnew -> tnew
+            _ -> t 
+        (Can.TType t1 t2 t3) -> Can.TType t1 t2 (map self t3)
+        (Can.TRecord t1 t2) -> t --TODO  
+        Can.TUnit -> t 
+        (Can.TTuple t1 t2 t3) -> Can.TTuple (self t1) (self t2) (self <$> t3) 
+        (Can.TAlias t1 t2 t3 t4) -> t --TODO  
+
+topForType :: Int ->  Map.Map N.Name Can.Union -> Can.Type -> LitPattern
+topForType fuel unionMap tipe@(Can.TType _ name _) = case Map.lookup name unionMap of 
+    Nothing -> trace ("Name " ++ N.toString name ++ " not in map " ++ show unionMap) $ Top
+    Just u -> unionToLitPattern fuel unionMap u tipe 
+topForType _ _ t = trace ("Default top type " ++ show t) $  Top
+
+unionToLitPattern :: Int -> Map.Map N.Name Can.Union -> Can.Union -> Can.Type -> LitPattern
+unionToLitPattern fuel unionMap u (Can.TType _ _ targs )  | fuel >= 0 = 
+    let 
+        typeMap :: Map.Map N.Name Can.Type
+        typeMap = Map.fromList $ zip (Can._u_vars u) targs 
+        componentForCtor (Can.Ctor n _ _ argTypes ) = Ctor (N.toString n) (map (topForType (fuel - 1) unionMap) $ map (tsub typeMap) argTypes) 
+    in unions $ map componentForCtor (Can._u_alts u) 
+unionToLitPattern _ _ _ _ = Top
 
 getProjections :: (ConstrainM m) => String -> Arity -> LitPattern -> m (Constraint, [LitPattern])
 getProjections name arity pat = do
