@@ -239,6 +239,9 @@ p1 ==== p2 =
         -- (Bottom, _) -> l2 << Bottom
         _ -> CEqual l1 l2
 
+deepUnifyTop :: TypeEffect -> Constraint
+deepUnifyTop te = CAnd $ (flip map) (typeFreeVars te) (==== Top)
+
 cNot :: Constraint -> Constraint
 cNot (CNot c) = c
 cNot c = CNot c
@@ -307,7 +310,9 @@ traverseTE :: (TypeEffect -> TypeEffect) -> TypeEffect -> TypeEffect
 traverseTE f (t :@ e) = f ((f <$>  t) :@ e)
 
 typeSubsts :: (Variable -> Variable) -> TypeEffect -> TypeEffect
-typeSubsts sub (t :@ e) = (typeSubsts sub <$> t) :@ (litSubsts sub e)
+typeSubsts sub (t :@ e) = 
+    let ret = ((typeSubsts sub <$> t) :@ (litSubsts sub e))
+    in trace ("subbing Type " ++ show (t :@ e) ++ "   into  " ++ show ret) ret
 
 constrSubsts :: (Variable -> Variable) -> Constraint -> Constraint
 constrSubsts sub c@(CSubset p1 p2) =  CSubset (litSubsts sub p1) (litSubsts sub p2)
@@ -317,8 +322,8 @@ constrSubsts sub (Fix c) =   Fix (constrSubsts sub <$> c)
 safetySubsts sub (Safety l) = Safety $ (fmap . first)  (constrSubsts sub ) l
 
 litSubsts :: (Variable -> Variable) -> LitPattern -> LitPattern
-litSubsts sub l@(SetVar v) =  SetVar $ sub v
-litSubsts sub (Fix l) =  Fix (litSubsts sub <$> l)
+litSubsts sub l@(SetVar v) =  let ret = (SetVar $ sub v) in trace ("subbing LitVar " ++ show v ++ "   into  " ++ show ret) ret
+litSubsts sub (Fix l) =  let ret = Fix (litSubsts sub <$> l) in trace ("subbing Lit " ++ show (Fix l) ++ "   into  " ++ show ret) ret
 
 -- typeSubsts :: (Variable -> Variable) -> TypeEffect -> TypeEffect
 -- typeSubsts sub (t :@ e) = oneTypeSubst sub ((oneTypeSubst sub <$> t) :@ e)
@@ -346,6 +351,13 @@ litFreeVars (Fix l) =  litLocalVars (Fix l) ++ concatMap litFreeVars ( toList l)
 safetyFreeVars (Safety l) = concatMap  (constrFreeVars . fst ) l
 -- schemeFreeVars (Forall v t c  ) =  (typeFreeVars t) ++ (constrFreeVars c) 
 
+typeFreeTypeVars :: TypeEffect -> [(N.Name, LitPattern)]
+typeFreeTypeVars ty@(t :@ e) =  (typeLocalTypeVars ty) ++ concatMap typeFreeTypeVars (toList t)
+typeLocalTypeVars t@(TypeVar n :@ e) = [(n,e)] 
+typeLocalTypeVars (t :@ e) = []
+
+
+
 freshName :: (ConstrainM m) => String -> m String
 freshName s = do
     ioref <- State.get
@@ -367,27 +379,35 @@ instantiate (Forall boundVars tipe constr safety) = do
     freshVars <- forM [1 .. length boundVars] $ \ _ -> freshVar
     let subList =  zip boundVars freshVars
     case subList of
-        [] -> do
+        [] -> do 
             --Should be empty for monoscheme
             tell safety
             return (tipe, constr)
         _ -> do
             logIO $ "Instantiating with SubList" ++ (show subList)
-            let substFun x = unsafePerformIO $ do
-                 equivs <- filterM (UF.equivalent x . fst ) subList
-                 case equivs of
-                    [] -> do
-                        doLog $ "Didn't find variable " ++ (show x) ++ " in list " ++ ( show subList)
-                        return x
-                    (_,z):[] -> do
-                        doLog $ "Replacing " ++ (show x) ++ " with " ++ (show z)
-                        return z
-                    _ -> error "Too many matching vars in instantiate"
+            let typeFVs = typeFreeVars tipe
+            let constrFVs = constrFreeVars constr
+            let safetyFVs = safetyFreeVars safety
+            subPairList <-  forM (typeFVs ++ constrFVs ++ safetyFVs) $ \oldVar -> forM subList $ \(boundVar, freshVar) -> do
+              equiv <- liftIO $ UF.equivalent oldVar boundVar
+              case equiv of
+                False -> return []
+                True -> return [(oldVar, freshVar)]
+            let subPairs = List.nub (subList ++  concatMap concat subPairList  )
+            logIO $ "Got total subPair list " ++ show subPairs
+            let substFun x = 
+                    case lookup x subPairs of
+                        Nothing -> x
+                        Just y -> y
             let subbedSafety = safetySubsts substFun safety
             --Add whatever safety constraints came from the instantiation
             -- to our current safety constraints
             tell subbedSafety
-            return $ (typeSubsts substFun tipe, constrSubsts substFun constr )
+            let subbedType = typeSubsts substFun tipe
+                subbedConstr = constrSubsts substFun constr
+            logIO $ "Subbed type for instantiation " ++ show subbedType
+            logIO $ "Subbed constr for instantiation " ++ show subbedConstr
+            return $ (subbedType, subbedConstr )
 
 
 generalize :: (ConstrainM m) => Gamma -> TypeEffect -> Constraint -> Safety -> m EffectScheme
@@ -504,7 +524,7 @@ optimizeConstr :: forall m . (ConstrainM m) => TypeEffect  -> Constraint -> Safe
 optimizeConstr tipe (CAnd []) safety = return (tipe, CTrue, safety)
 optimizeConstr topTipe (CAnd l) safety = do
     let totalList = ((map fst $ unSafety safety) ++ l)
-    (optimizedPairs, tInter) <-  doOpts True topTipe (map (,()) l) totalList (const $  return ())
+    (optimizedPairs, tInter) <-  doOpts True topTipe (map (,()) l) totalList (\x -> logIO $ "AUTOMATICALLY DISCHARGING CONSTR " ++ show x)
     (optimizedSafetyList, tret) <- doOpts True tInter (unSafety safety) totalList  dischargeSafety
     let optimizedSafety = Safety optimizedSafetyList
     let optimized = map fst optimizedPairs
@@ -535,6 +555,7 @@ optimizeConstr topTipe (CAnd l) safety = do
         removeDead :: [(Constraint, a)] -> [Constraint] -> TypeEffect -> ([(Constraint, a)] -> m ()) -> m [(Constraint, a)]
         removeDead clist totalList tp discharge = do
             let
+                tfVars = typeFreeVars tp
                 --First we remove constraints of the form
                 -- X << pat 
                 -- or the form (pat << X)
@@ -542,13 +563,18 @@ optimizeConstr topTipe (CAnd l) safety = do
                 --Since these are always trivially solveable
                 occurrences = map (constrFreeVars ) totalList
             logIO $ "All occurrences: " ++ show (zip3 totalList (map (\(Fix c) -> toList c) totalList) occurrences)
+            logIO $ "Type free vars: " ++ show tfVars ++ "  for  " ++ show tp
+            logIO $ "Bare occurreces: " ++ show occurrences
             let 
-                varIsDead v = (not $ v `elem` (typeFreeVars tp)) && (length (filter (v `elem`) occurrences) < 2)
+                
+                ocList = tfVars ++ concat occurrences
+                varIsDead v = (length (filter (== v) ocList) < 2)
                 constrIsDead (CSubset (SetVar v) l) = varIsDead v
                 constrIsDead (CSubset l (SetVar v)) = varIsDead v
                 constrIsDead (CEqual (SetVar v) l) = varIsDead v
                 constrIsDead (CEqual l (SetVar v)) = varIsDead v
                 constrIsDead (CImplies c1 c) = constrIsDead c --Implication is dead if conclusion is trivial
+                constrIsDead (CImplies _ CTrue) = True
                 constrIsDead c = False
             let (easyFiltered, easyDeleted) = List.partition (not . constrIsDead . fst ) clist
             --Then, we remove constraints contianing only variables
@@ -556,7 +582,7 @@ optimizeConstr topTipe (CAnd l) safety = do
             -- i.e. we only want constraints relevant to the typeEffect
             logIO $ "Easy filter deleting: " ++ show (map fst easyDeleted) 
             logIO $ "After filtering, giving to graph opt: " ++ show (map fst easyFiltered) 
-            removeUnreachableConstraints (typeFreeVars tp) easyFiltered totalList discharge
+            removeUnreachableConstraints tfVars easyFiltered totalList discharge
 
         
         -- subVars :: Constraint -> m Constraint
@@ -826,11 +852,12 @@ tellSafety pathConstr x r context pats = tell $ Safety [(pathConstr ==> x, (r, c
 -- Emits "safety constraints" using the Writer monad
 constrainExpr :: (ConstrainM m) => Map.Map R.Region Can.Type -> (Gamma, Constraint) -> Can.Expr ->   m (TypeEffect,  Constraint)
 constrainExpr tyMap _GammaPath (A.At region expr)  = do
-    logIO ("Constraining exprssion " ++ show expr)
+    -- logIO ("Constraining exprssion " ++ show expr)
     case Map.lookup region tyMap of
         Just rawty -> do
             ty <- addEffectVars rawty
             c <- constrainExpr_ expr ty _GammaPath
+            logIO ("Constrained exprssion " ++ show expr ++ "  to " ++ show ty ++ "  WITH CONSTR " ++ show c) 
             return (ty, c)
         Nothing -> error "Region not in type map"
   where
@@ -841,11 +868,11 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
         case Map.lookup name _Gamma of
             Nothing ->  do
                 logIO $ "VAR NOT FOUND: " ++ N.toString name ++ "  at  " ++ show region 
-                return (t ==== Top ) --Might hit this for record variables
+                return (deepUnifyTop t ) --Might hit this for record variables
                         -- error $ "constrainExpr: name " ++ (show name) ++ "at region " ++ (show region) ++ " not found in " ++ (show _Gamma)
             (Just sigma) -> do
                 (tipe, constr) <- instantiate sigma
-                logIO $ "Instantiating " ++ (show sigma) ++ " into " ++ (show (tipe, constr)) ++ " for var " ++ (N.toString name)
+                logIO $ "Instantiating " ++ N.toString name ++ "  type  " ++ (show sigma) ++ " into " ++ (show (tipe, constr)) ++ " for var " ++ (N.toString name)
                 logIO $ "Unifying types" ++ (show t) ++ "\n  and " ++ show tipe
                 unifyTypes t tipe
                 return constr
@@ -853,11 +880,11 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
         case Map.lookup name _Gamma  of
             Nothing -> do
                 logIO ("TOP for Setting type for " ++ (show e) ++ " imported, var " ++ show t)
-                return $ t ==== Top
+                return $ deepUnifyTop t
             Just sigma -> do
                 --TODO reduce duplication
                 (tipe, constr) <- instantiate sigma
-                logIO $ "Instantiating " ++ (show sigma) ++ " into " ++ (show (tipe, constr)) ++ " for var " ++ (N.toString name)
+                logIO $ "Instantiating " ++ N.toString name ++ "  type  " ++ (show sigma) ++ " into " ++ (show (tipe, constr)) ++ " for var " ++ (N.toString name)
                 logIO $ "Unifying types" ++ (show t) ++ "\n  and " ++ show tipe
                 unifyTypes t tipe
                 return constr
@@ -870,7 +897,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
             ctorLoop (_ :@ ctorVar ) reverseAccum condAccum = condAccum /\ (ctorVar ==== (Ctor (N.toString ctorName) (map toLit $ reverse reverseAccum)) )
     constrainExpr_ e@(Can.VarOperator _ _ _ _) t _GammaPath = do
         logIO ("TOP for var operator " ++ show e ++ ", var " ++ show t)
-        return $ t ==== Top
+        return $ deepUnifyTop t
     constrainExpr_ e@(Can.Binop name _ _ _ e1 e2) t _GammaPath = do
         (ty1, constr1) <- self _GammaPath e1
         (ty2, constr2) <- self _GammaPath e2
@@ -878,7 +905,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
             "::" -> return $ t ==== litCons ty1 ty2
             _ -> do
                 logIO ("TOP for binary operator " ++ show e ++ ", var " ++ show t)
-                return (t ==== Top)
+                return (deepUnifyTop t)
         return $ constr1 /\ constr2 /\ opConstr --TODO built-in types for operators  
     constrainExpr_ (Can.Case discr@(A.At dloc _) branches) resultType (_Gamma, pathConstr) = do
         (inputPatterns, inputConstrs) <- self (_Gamma, pathConstr) discr
@@ -919,7 +946,8 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
                 \(pat, lit, rhs) -> do
                     -- v <- freshVar
                     let canBeInBranch = ( toLit inputPatterns `intersect` lit) </< Bottom
-                    (newEnv, newEnvConstr) <- envAfterMatch tyMap (toLit inputPatterns) pat
+                    (newEnv, newEnvConstr, newType) <- envAfterMatch tyMap (toLit inputPatterns) pat 
+                    unifyTypes inputPatterns newType
                     let newPathConstr = canBeInBranch /\ pathConstr
                     (rhsTy, rhsConstrs) <- self (Map.union newEnv _Gamma, newPathConstr) rhs
                     --If this branch is reachable, then we emit a constraint saying
@@ -946,7 +974,8 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
                     --All values of function types must be lambdas, so we have a trivial constraint on v3
                     let lamConstr = (v3 ==== litLambda)
                     --Get the environment to check the body
-                    (newEnv, newEnvConstr) <- envAfterMatch tyMap (toLit dom) argPat
+                    (newEnv, newEnvConstr, newType) <- envAfterMatch tyMap (toLit dom) argPat
+                    unifyTypes newType dom
                     --Check the body --TODO path constr?
                     bodyConstr <- lamHelper argPats cod (Map.union newEnv _Gamma, pathConstr)
                     return $ newEnvConstr /\ bodyConstr /\ lamConstr
@@ -960,8 +989,10 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
                 --Loop to compute the return type
                 --At each application, instantiate the function's argument type to be the type of the given argument
                 --Finally, make sure the patterns of the whole expression is the pattern the function returns
-                argHelper funEffect [] accum =
-                    return $  (funEffect << retEffect) /\ accum
+                argHelper funEffect [] accum = do
+                    let retConstr = (funEffect << retEffect) /\ accum
+                    -- logIO $ "Constraining that returnTy " 
+                    return $  retConstr
                 argHelper (Fun dom cod :@ _) (argTy : rest) accum = do
                     logIO $ "Constraining that argTy " ++ (show argTy) ++ ("Smaller than " ++ show dom)
                     tellSafety pathConstr (argTy << dom) region PatError.BadArg [] --TODO something sensible for pat list here 
@@ -1003,16 +1034,17 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
         (letType, letConstr) <- self _GammaPath letExp
         --Safety constraint: must match whatever we are binding
         tellSafety pathConstr (letType << lit) region PatError.BadCase [pat]
-        (envExt, envExtConstr) <- envAfterMatch tyMap (toLit letType) pat
+        (envExt, envExtConstr, newType) <- envAfterMatch tyMap (toLit letType) pat
+        unifyTypes newType letType
         --TODO extend path cond
         (bodyType, bodyConstr) <- self (Map.union envExt _Gamma, pathConstr) inExp
         --Whole expression has type of body
         unifyTypes bodyType t
         return $ envExtConstr /\ letConstr /\ bodyConstr
-    constrainExpr_ (Can.Accessor expr) t _GammaPath = return $ t ==== Top
-    constrainExpr_ (Can.Access expr1 expr2) t _GammaPath = return $ t ==== Top
-    constrainExpr_ (Can.Update expr1 expr2 expr3) t _GammaPath = return $ t ==== Top
-    constrainExpr_ (Can.Record expr) t _GammaPath = return $ t ==== Top
+    constrainExpr_ (Can.Accessor expr) t _GammaPath = return $ deepUnifyTop t
+    constrainExpr_ (Can.Access expr1 expr2) t _GammaPath = return $ deepUnifyTop t
+    constrainExpr_ (Can.Update expr1 expr2 expr3) t _GammaPath = return $ deepUnifyTop t
+    constrainExpr_ (Can.Record expr) t _GammaPath = return $ deepUnifyTop t
     constrainExpr_ (Can.Tuple expr1 expr2 Nothing) (_ :@ vTuple) _GammaPath = do
         (elemEffect1, constr1) <- self _GammaPath expr1
         (elemEffect2, constr2) <- self _GammaPath expr2
@@ -1029,21 +1061,21 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
     constrainExpr_ (Can.Str s) typeEffect  _GammaPath = return $ (litString s) ==== typeEffect
     constrainExpr_ (Can.Int i) typeEffect  _GammaPath =  return $ (litInt i) ==== typeEffect
     constrainExpr_ (Can.Float expr) t _GammaPath = return CTrue
-    constrainExpr_ (Can.Negate expr) t _GammaPath = return (t ==== Top) --TODO something smart for negation
+    constrainExpr_ (Can.Negate expr) t _GammaPath = return (deepUnifyTop t) --TODO something smart for negation
     constrainExpr_ e@(Can.VarKernel expr1 expr2) t _GammaPath = do
         logIO ("TOP for varKernel " ++ show e ++ ", var " ++ show t)
-        return (t ==== Top)
-    constrainExpr_ (Can.VarForeign expr1 expr2 expr3) t _GammaPath = return (t ==== Top)
-    constrainExpr_ (Can.VarDebug expr1 expr2 expr3) t _GammaPath = return (t ==== Top)
+        return (deepUnifyTop t)
+    constrainExpr_ (Can.VarForeign expr1 expr2 expr3) t _GammaPath = return (deepUnifyTop t)
+    constrainExpr_ (Can.VarDebug expr1 expr2 expr3) t _GammaPath = return (deepUnifyTop t)
     constrainExpr_ Can.Unit (_:@v) _GammaPath = return $ litUnit ==== v
-    constrainExpr_ (Can.Shader expr1 expr2 expr3) t _GammaPath = return (t ==== Top )
+    constrainExpr_ (Can.Shader expr1 expr2 expr3) t _GammaPath = return (deepUnifyTop t )
     constrainExpr_ e t _ = error $ "Impossible type-expr combo " ++ (show e) ++ "  at type " ++ (show t)
 
 constrainDef :: (ConstrainM m) => Map.Map R.Region Can.Type -> (Gamma, Constraint) -> Can.Def ->   m Gamma
 constrainDef tyMap _GammaPath def = do
     let unrolled =  unrollDef unrollLevel def
     logIO $ if (show unrolled /= show def) then  ("Unrolled def " ++ show def ++ "       into       " ++ show unrolled) else ""
-    constrainDef_ tyMap _GammaPath unrolled
+    constrainDefUnrolled tyMap _GammaPath unrolled
 
 
 unrollDef :: Int -> Can.Def -> Can.Def
@@ -1094,8 +1126,8 @@ dsub e var (Can.TypedDef d1 d2 d3 d4 d5) = Can.TypedDef d1 d2 d3 (esub e var d4)
 --Takes place in the IO monad, not our ConstrainM
 --Because we want to generate a separate set of safety constraints for this definition
 --TODO check all this
-constrainDef_ :: (ConstrainM m) => Map.Map R.Region Can.Type -> (Gamma, Constraint) -> Can.Def ->   m Gamma
-constrainDef_ tyMap _GammaPath@(_Gamma, pathConstr) def = do
+constrainDefUnrolled :: (ConstrainM m) => Map.Map R.Region Can.Type -> (Gamma, Constraint) -> Can.Def ->   m Gamma
+constrainDefUnrolled tyMap _GammaPath@(_Gamma, pathConstr) def = do
     theRef <- State.get
     (x, defType, defConstr, theSafety) <- case def of
         --Get the type of the body, and add it into the environment as a monoscheme
@@ -1112,8 +1144,9 @@ constrainDef_ tyMap _GammaPath@(_Gamma, pathConstr) def = do
         (Can.TypedDef (A.At wholeRegion x) _ patTypes body retTipe) -> do
             retTyEff <- addEffectVars retTipe
             argTyEffs <- mapM (addEffectVars . snd) patTypes
-            freshVars <- forM patTypes $ \ _ -> SetVar <$> freshVar
+            freshVars <- forM patTypes $ \ _ -> SetVar <$> freshVar --These are the type annots for each function, i.e. unused
             let wholeType = foldr (\ (arg, var) ret -> (Fun arg ret) :@ var) retTyEff (zip argTyEffs freshVars)
+            -- forM (zip argTyEffs freshVars)  $ \(argTyEff, freshVarEff) -> unifyTypes argTyEff freshVarEff
             -- let wholeType = 
             --         case Map.lookup wholeRegion tyMap of
             --             Nothing -> error $ "constrainDef typed: Can't find region " ++ (show wholeRegion) ++ " in type map " ++ (show tyMap)
@@ -1121,16 +1154,19 @@ constrainDef_ tyMap _GammaPath@(_Gamma, pathConstr) def = do
             --We run in a separate instance, so we get different safety constraints
             --TODO need this?
             (exprConstr, safety)  <- unpackEither $ liftIO $ runCMIO theRef $ constrainDef_  (map fst patTypes) body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
-            return (x, wholeType, exprConstr, safety)
+            return (x, wholeType, exprConstr , safety)
     --We check that each safety constraint in this definition is compatible with the other constraints
     let safetyList = unSafety theSafety
     logIO $  "Solving constraints for definition " ++ N.toString  x
     logIO $ N.toString  x ++ ": Got regular constraints " ++ (show $ defConstr)
     logIO $ N.toString  x ++ ": Got safety constraints " ++ (show $ getSafetyConstrs theSafety)
+    logIO $ N.toString  x ++ ": Got unopt type " ++ (show $ defType)
     -- (optimizedDefType , optimizedDefConstr, optimizedDefSafety) <- optimizeConstr defType (defConstr )
     logIO $ "Getting optimized constraints for scheme"
     (optimizedType , optimizedConstr, optimizedSafety) <- optimizeConstr defType defConstr theSafety  
     logIO $ N.toString  x ++ ": Got optimized safety constraints " ++ (show $ getSafetyConstrs optimizedSafety)
+    logIO $ N.toString  x ++ ": Got optimized regular constraints " ++ (show $ optimizedConstr)
+    logIO $ N.toString  x ++ ": Got optimized type " ++ (show $ optimizedType)
     -- mTestSoln <- solveConstraint optimizedDefConstr
     -- case mTestSoln of
     --     Right () -> return ()
@@ -1162,10 +1198,12 @@ constrainDef_ tyMap _GammaPath@(_Gamma, pathConstr) def = do
     where
         constrainDef_  (argPat : argList) body ((Fun dom cod) :@ vFun) _Gamma = do
             --Add the argument pattern vars to the dictionary, then check the rest at the codomain type
-            (envExt, envExtConstr) <- (envAfterMatch tyMap (toLit dom) argPat)
+            (envExt, envExtConstr, newType) <- (envAfterMatch tyMap (toLit dom) argPat)
+            unifyTypes newType dom
             retConstr <- constrainDef_ argList body cod (Map.union envExt  _Gamma)
             return (envExtConstr /\ retConstr)
         constrainDef_  [] body exprType _Gamma = do
+            logIO $ "DEF START CONSTRAIN  with Gamma  " ++ show _Gamma 
             (bodyType, bodyConstr) <- constrainExpr tyMap (_Gamma, pathConstr) body
             unifyTypes bodyType exprType
             --Now that we have the type and constraints for our definition body
@@ -1268,8 +1306,7 @@ getProjections name arity pat = do
     let emptyIff = CAnd $ map (\proj -> (proj ==== Bottom) <==> (partMatchingCtor ==== Bottom)) projPatterns
     return (varsMatchProj /\ emptyIff, projPatterns)
 
-
-envAfterMatch :: (ConstrainM m) => Map.Map R.Region Can.Type ->  LitPattern  -> Can.Pattern -> m (Gamma, Constraint)
+envAfterMatch :: (ConstrainM m) => Map.Map R.Region Can.Type ->  LitPattern  -> Can.Pattern -> m (Gamma, Constraint, TypeEffect)
 envAfterMatch tyMap matchedPat (A.At region pat)  = do
     ourType <-
             case Map.lookup region tyMap of
@@ -1278,9 +1315,9 @@ envAfterMatch tyMap matchedPat (A.At region pat)  = do
     let ctorProjectionEnvs  topPat nameString ctorArgPats = do
             let arity = Arity (length ctorArgPats)
             (projConstrs, subPats) <- getProjections nameString arity topPat
-            (subDicts, subConstrs) <- unzip <$> zipWithM  ((envAfterMatch tyMap) ) subPats ctorArgPats
+            (subDicts, subConstrs, _) <- unzip3 <$> zipWithM  ((envAfterMatch tyMap) ) subPats ctorArgPats
             return $ (Map.unions subDicts,  projConstrs /\  CAnd subConstrs) --TODO put back 
-    case pat of
+    (ret1, ret2 ) <- case pat of
         Can.PVar x -> return $ (Map.singleton x (monoscheme ourType matchedPat), CTrue)
         Can.PCtor { Can._p_name = ctorName, Can._p_args = ctorArgs } ->
             ctorProjectionEnvs matchedPat (N.toString ctorName) $ map Can._arg ctorArgs
@@ -1291,6 +1328,10 @@ envAfterMatch tyMap matchedPat (A.At region pat)  = do
         (Can.PList (p1 : pList)) -> ctorProjectionEnvs matchedPat ctorCons [p1, A.At region (Can.PList pList)]
         (Can.PCons p1 p2) -> ctorProjectionEnvs matchedPat ctorCons [p1, p2]
         _ -> return $ (Map.empty, CTrue)
+    return (ret1, ret2, ourType)
+    
+
+    
 
 
 
@@ -1307,7 +1348,7 @@ litTriple l1 l2 l3 = Ctor ctorTriple  (map toLit [l1, l2, l3])
 
 litList l = case l of
     [] -> litNull
-    (h : t) -> litCons h (litList t)
+    (h : t) -> litCons h (litList t) 
 ctorNull = "PatMatchNull"
 ctorCons = "PatMatchCons"
 litNull = Ctor ctorNull []
