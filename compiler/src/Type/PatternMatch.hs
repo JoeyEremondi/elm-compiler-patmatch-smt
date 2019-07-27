@@ -560,29 +560,37 @@ optimizeConstr topTipe (CAnd l) safety = do
                 -- X << pat 
                 -- or the form (pat << X)
                 --where X occurs in no other constraints
-                --Since these are always trivially solveable
+                --Since these are always trivially solveable 
                 occurrences = map (constrFreeVars ) totalList
             logIO $ "All occurrences: " ++ show (zip3 totalList (map (\(Fix c) -> toList c) totalList) occurrences)
             logIO $ "Type free vars: " ++ show tfVars ++ "  for  " ++ show tp
+            ocList <- forM (tfVars ++ concat occurrences) (\ pt -> (fmap fst ) $ liftIO $ UF.get pt)
             logIO $ "Bare occurreces: " ++ show occurrences
+            logIO $ "OCList " ++ show ocList
             let 
                 
-                ocList = tfVars ++ concat occurrences
-                varIsDead v = (length (filter (== v) ocList) < 2)
+                varIsDead v =  do
+                    r1 <- fst <$> (liftIO $ UF.get v)
+                    return (length (filter (== r1) ocList) <2)
+
+                constrIsDead (CSubset (SetVar v) (SetVar v2)) = (liftM2 (||)) (varIsDead v) (varIsDead v2)
                 constrIsDead (CSubset (SetVar v) l) = varIsDead v
-                constrIsDead (CSubset l (SetVar v)) = varIsDead v
+                constrIsDead (CSubset l (SetVar v)) =  varIsDead v 
+                constrIsDead (CEqual (SetVar v) (SetVar v2)) = (liftM2 (||)) (varIsDead v) (varIsDead v2)
                 constrIsDead (CEqual (SetVar v) l) = varIsDead v
                 constrIsDead (CEqual l (SetVar v)) = varIsDead v
                 constrIsDead (CImplies c1 c) = constrIsDead c --Implication is dead if conclusion is trivial
-                constrIsDead (CImplies _ CTrue) = True
-                constrIsDead c = False
-            let (easyFiltered, easyDeleted) = List.partition (not . constrIsDead . fst ) clist
+                constrIsDead (CImplies _ CTrue) = return True
+                constrIsDead c = return False
+            boolList <- forM clist (\x -> (fmap not) $ constrIsDead (fst x))
+            let boolPairList = zip boolList clist
+            let (easyFiltered, easyDeleted) = List.partition fst boolPairList
             --Then, we remove constraints contianing only variables
             --that are unreachable from the reference graph of the type's free variables
             -- i.e. we only want constraints relevant to the typeEffect
-            logIO $ "Easy filter deleting: " ++ show (map fst easyDeleted) 
-            logIO $ "After filtering, giving to graph opt: " ++ show (map fst easyFiltered) 
-            removeUnreachableConstraints tfVars easyFiltered totalList discharge
+            logIO $ "Easy filter deleting: " ++ show (map (fst . snd) easyDeleted) 
+            logIO $ "After filtering, giving to graph opt: " ++ show (map (fst . snd) easyFiltered) 
+            removeUnreachableConstraints tfVars (map snd easyFiltered) totalList discharge
 
         
         -- subVars :: Constraint -> m Constraint
@@ -1139,7 +1147,7 @@ constrainDefUnrolled tyMap _GammaPath@(_Gamma, pathConstr) def = do
                         Just s-> addEffectVars s
             --We run in a separaelm te instance, so we get different safety constraints
             --TODO need this?
-            (exprConstr, safety) <- unpackEither $ liftIO $ runCMIO theRef $ constrainDef_  funArgs body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
+            (exprConstr, safety) <- unpackEither $ liftIO $ runCMIO theRef $ constrainDef_ x funArgs body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
             return (x, wholeType, exprConstr, safety)
         (Can.TypedDef (A.At wholeRegion x) _ patTypes body retTipe) -> do
             retTyEff <- addEffectVars retTipe
@@ -1153,7 +1161,7 @@ constrainDefUnrolled tyMap _GammaPath@(_Gamma, pathConstr) def = do
             --             Just s-> s 
             --We run in a separate instance, so we get different safety constraints
             --TODO need this?
-            (exprConstr, safety)  <- unpackEither $ liftIO $ runCMIO theRef $ constrainDef_  (map fst patTypes) body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
+            (exprConstr, safety)  <- unpackEither $ liftIO $ runCMIO theRef $ constrainDef_ x (map fst patTypes) body wholeType (Map.insert x (monoschemeVar wholeType) _Gamma)
             return (x, wholeType, exprConstr , safety)
     --We check that each safety constraint in this definition is compatible with the other constraints
     let safetyList = unSafety theSafety
@@ -1196,21 +1204,21 @@ constrainDefUnrolled tyMap _GammaPath@(_Gamma, pathConstr) def = do
     logIO $ "Generalized type for " ++ N.toString x ++ " is " ++ (show scheme)
     return $ Map.singleton x scheme
     where
-        constrainDef_  (argPat : argList) body ((Fun dom cod) :@ vFun) _Gamma = do
+        constrainDef_ x  (argPat : argList) body ((Fun dom cod) :@ vFun) _Gamma = do
             --Add the argument pattern vars to the dictionary, then check the rest at the codomain type
             (envExt, envExtConstr, newType) <- (envAfterMatch tyMap (toLit dom) argPat)
             unifyTypes newType dom
-            retConstr <- constrainDef_ argList body cod (Map.union envExt  _Gamma)
+            retConstr <- constrainDef_ x argList body cod (Map.union envExt  _Gamma)
             return (envExtConstr /\ retConstr)
-        constrainDef_  [] body exprType _Gamma = do
-            logIO $ "DEF START CONSTRAIN  with Gamma  " ++ show _Gamma 
+        constrainDef_ x  [] body exprType _Gamma = do
+            logIO $ "DEF START CONSTRAIN for " ++ N.toString x ++ "  with Gamma  " ++ show _Gamma 
             (bodyType, bodyConstr) <- constrainExpr tyMap (_Gamma, pathConstr) body
             unifyTypes bodyType exprType
             --Now that we have the type and constraints for our definition body
             --We can generalize it into a type scheme and return a new environment 
             --TODO run constraint solver at this point
             return bodyConstr
-        constrainDef_ argList body t _Gamma = error ("Got bad type " ++ show t ++ " for def num args " ++ show (length argList) )
+        constrainDef_ x argList body t _Gamma = error ("Got bad type " ++ show t ++ " for def num args " ++ show (length argList) )
 
 --Convert to our pattern format
 --Used to generate safety constraints for pattern matches   
