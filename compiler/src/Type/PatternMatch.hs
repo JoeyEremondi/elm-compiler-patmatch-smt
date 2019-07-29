@@ -246,15 +246,26 @@ cNot :: Constraint -> Constraint
 cNot (CNot c) = c
 cNot c = CNot c
 
-unions :: (Subsetable a) => [a] -> LitPattern
+unions :: (Subsetable a, Ord a) => [a] -> LitPattern
 -- unions [] = Bottom
-unions (a : l) = foldr (\ a b ->  (toLit a) `union` b) (toLit a) l
+unions (a : l) = foldr (\ a b ->  (toLit a) `union` b) (toLit a) (List.sort l)
 
-intersects :: (Subsetable a) => [a] -> LitPattern
+intersects :: (Subsetable a, Ord a) => [a] -> LitPattern
 -- intersects [] = Top
-intersects (a : l) = foldr (\ a b ->  (toLit a) `intersect` b) (toLit a) l
+intersects (a : l) = foldr (\ a b ->  (toLit a) `intersect` b) (toLit a) (List.sort l)
 
+union :: (Subsetable a, Subsetable b) => a -> b -> LitPattern
+union a b | toLit a == Top = Top
+union a b | toLit b == Top = Top
+union a b | toLit a == Bottom = toLit b
+union a b | toLit a == Bottom = toLit a
 union a b =  toLit a `Union` toLit b
+
+intersect :: (Subsetable a, Subsetable b) => a -> b -> LitPattern
+intersect a b | toLit a == Top = toLit b
+intersect a b | toLit b == Top = toLit a
+intersect a b | toLit a == Bottom = Bottom
+intersect a b | toLit a == Bottom = Bottom 
 intersect a b = toLit a `Intersect` toLit b
 
 class Subsetable a where
@@ -358,6 +369,13 @@ typeLocalTypeVars (t :@ e) = []
 
 
 
+--Does this pattern match at most one element?
+isSingleton :: LitPattern -> Bool
+isSingleton (Ctor _ args) = all isSingleton args
+isSingleton Bottom = True
+isSingleton _ = False
+
+
 freshName :: (ConstrainM m) => String -> m String
 freshName s = do
     ioref <- State.get
@@ -445,16 +463,25 @@ subTypeVars (t :@ e) = do
 removeUnreachableConstraints :: (ConstrainM m) => [Variable] -> [(Constraint, a)] -> [Constraint] -> ([(Constraint,a)] -> m () )-> m [(Constraint, a)]
 removeUnreachableConstraints initial candidateConstrs allConstrs discharge = do
     --TODO okay to assume that all vars live, even if replaced by expr?
+    --Variable names for all types reachable in our "initial variables"
+    --i.e. those referenced by the TypeEffect we're dealing with
     initialStrings <- fmap (map fst) $  liftIO $ mapM UF.get initial
+    --All varaibles in our constraint set
     allVars <- fmap (map fst) $ liftIO $ mapM UF.get $  List.nub $ initial ++ (concatMap (constrFreeVars  ) allConstrs)
+    --Two variables are connected if they occur in the same constraint
+    --We generate the pairs of all variables in a given constraint
     let edgesFor c = do
         let nodesForC = constrFreeVars c
         let pairs = [(c1, c2) | c1 <- nodesForC, c2 <- nodesForC]
         forM pairs $ \(c1, c2) -> do
             r1 <- liftIO $ UF.get c1
-            r2 <- liftIO $ UF.get c1
+            r2 <- liftIO $ UF.get c2
             return (fst r1, fst r2)
+    --Combine all the edges from our different constraints
     allEdges <- (List.nub . concat) <$> mapM (edgesFor )  allConstrs
+    logIO $ " All edges: " ++ show allEdges
+    --Get our edges into the format Data.Graph expects
+    --i.e. an adjacency list for each vertex (variable)
     let edgeListFor v = 
             (v, v, List.nub [ v2 | (v',v2) <- allEdges, v == v'])
         (graph, nodeFromVertex, vertexFromKey) = Graph.graphFromEdges $  map edgeListFor allVars
@@ -467,22 +494,27 @@ removeUnreachableConstraints initial candidateConstrs allConstrs discharge = do
         -- reachableVertices = map ( (\(a,_,_)->a) . nodeFromVertex . nodeOf) $ toList canReachForest
     --Now, we filter our constraints
     --Keep a constraint if any of its free variables are reachable
+    logIO $ "Reachable vertices: " ++ show reachableVertices 
+    --A constraint is reachable if one of its variables is reachable from the initial set
     let constraintReachable c = do
         let vars = constrFreeVars c
         varStrings <- fmap (map fst) $ liftIO $ forM vars UF.get
         return $ not $ null $ List.intersect  varStrings reachableVertices
     reachable <- filterM (constraintReachable . fst ) candidateConstrs
     unreachable <- filterM ( \ x -> fmap not $ constraintReachable $ fst x) candidateConstrs
+
+    --Now, we make a graph of connections between unreachable constraints
+    --Two constraints are connected if two of their variables are connected
     let cEdgesFor (pair1@(c1,_), pair2@(c2, _)) = do
         let vars1 = constrFreeVars c1
             vars2 = constrFreeVars c2
         varStrings1 <- fmap (map fst) $ liftIO $ forM vars1 UF.get
         varStrings2 <- fmap (map fst) $ liftIO $ forM vars2 UF.get
         let reachableFromVar1 = concatMap (\v -> Maybe.fromMaybe [] $ Map.lookup v reachabilityMap) varStrings1
-        case (varStrings2 `List.intersect` reachableFromVar1) of
+        case (varStrings2 `List.intersect` (reachableFromVar1 ++ varStrings1)) of
             [] -> return []
             _ -> do
-                liftIO $ putStrLn $ "Found connection between constraints " ++ show c1 ++ "   and    " ++ show c2
+                logIO $ "Found connection between constraints " ++ show c1 ++ "   and    " ++ show c2
                 return [(pair1,pair2)]
 
     cEdgePairs <- (fmap concat) $  mapM  cEdgesFor [(c1,c2) | c1 <- unreachable, c2 <- unreachable]
@@ -629,6 +661,8 @@ optimizeConstr topTipe (CAnd l) safety = do
         helper ((CSubset Bottom _, _) : l) accum = helper l accum
         helper ((CSubset pat@(SetVar _) Bottom, info) : rest) accum = helper ((CEqual Bottom pat, info):rest) accum
         helper ((CAnd l,info) : rest) accum = helper ( (map (,info) l) ++ rest) accum
+        helper ((CImplies (CNot (CSubset  (Intersect lhs1 lhs2) Bottom)) rhs,info) : l) accum | isSingleton lhs1 = helper (((CImplies (CSubset lhs1 lhs2) rhs),info) : l) accum
+        helper ((CImplies (CNot (CSubset  (Intersect lhs2 lhs1) Bottom)) rhs,info) : l) accum | isSingleton lhs1 = helper (((CImplies (CSubset lhs1 lhs2) rhs),info) : l) accum
         helper (h : rest) accum = helper rest (h : accum)
 optimizeConstr tipe c s = return (tipe, c, s)
 
@@ -1079,8 +1113,13 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
     constrainExpr_ (Can.Shader expr1 expr2 expr3) t _GammaPath = return (deepUnifyTop t )
     constrainExpr_ e t _ = error $ "Impossible type-expr combo " ++ (show e) ++ "  at type " ++ (show t)
 
+defName :: Can.Def -> String
+defName (Can.Def (A.At _ n) _ _ ) = N.toString n
+defName (Can.TypedDef (A.At _ n) _ _ _ _ ) = N.toString n
+
 constrainDef :: (ConstrainM m) => Map.Map R.Region Can.Type -> (Gamma, Constraint) -> Can.Def ->   m Gamma
 constrainDef tyMap _GammaPath def = do
+    liftIO $ putStrLn $ "Constraining definition " ++ defName def
     let unrolled =  unrollDef unrollLevel def
     logIO $ if (show unrolled /= show def) then  ("Unrolled def " ++ show def ++ "       into       " ++ show unrolled) else ""
     constrainDefUnrolled tyMap _GammaPath unrolled
