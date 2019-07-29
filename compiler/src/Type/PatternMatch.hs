@@ -172,7 +172,7 @@ data Constraint_ self =
     CAnd_ [self]
     | COr_ [self]
     | CImplies_ self self
-    | CIff_ self self
+    -- | CIff_ self self
     | CSubset_ LitPattern LitPattern
     | CEqual_ LitPattern LitPattern
     | CTrue_
@@ -182,7 +182,7 @@ data Constraint_ self =
 pattern CAnd l = Fix (CAnd_ l)
 pattern COr l = Fix (COr_ l)
 pattern CImplies x y = Fix (CImplies_ x y)
-pattern CIff x y = Fix (CIff_ x y)
+-- pattern CIff x y = Fix (CIff_ x y)
 pattern CSubset x y = Fix (CSubset_ x y)
 pattern CEqual x y = Fix (CEqual_ x y)
 pattern CTrue = Fix CTrue_
@@ -192,7 +192,7 @@ instance Show Constraint where
     show (CAnd l) = "(" ++ List.intercalate " ∧ " (map show l) ++ ")"
     show (COr l) = "(" ++ List.intercalate " ∨ " (map show l) ++ ")"
     show (CImplies x y) = "(" ++ show x ++ " ⇒ " ++ show y ++ ")"
-    show (CIff x y) = "(" ++ show x ++ " ⇔ " ++ show y ++ ")"
+    -- show (CIff x y) = "(" ++ show x ++ " ⇔ " ++ show y ++ ")"
     show (CNot (CSubset x y)) = "(" ++ show x ++ " ⊈ " ++ show y ++ ")"
     show (CSubset x y) = "(" ++show x ++ " ⊆ " ++ show y ++ ")"
     show (CEqual x y) = show x ++ " ≡ " ++ show y 
@@ -372,7 +372,6 @@ typeLocalTypeVars (t :@ e) = []
 --Does this pattern match at most one element?
 isSingleton :: LitPattern -> Bool
 isSingleton (Ctor _ args) = all isSingleton args
-isSingleton Bottom = True
 isSingleton _ = False
 
 
@@ -630,6 +629,10 @@ optimizeConstr topTipe (CAnd l) safety = do
         helper :: [(Constraint, a)] -> [(Constraint,a)] -> m [(Constraint, a)] 
         helper [] accum = return $ reverse accum
         helper ((CTrue,_) : rest) accum = helper rest accum
+        helper ((CImplies (CSubset _ Top) rhs, info) : rest ) accum = helper ((rhs, info) : rest) accum
+        helper ((CImplies CTrue rhs, info) : rest ) accum = helper ((rhs, info) : rest) accum
+        --basically modus-ponens
+        helper ((CImplies lhs rhs, info) : (lhs', info') : rest ) accum | lhs == lhs' = helper ((rhs, info) : (lhs, info') : rest) accum
         helper ((CEqual (SetVar l1) (SetVar l2), info) : rest) accum = do
             eq <- liftIO $ UF.equivalent l1 l2
             case eq of
@@ -663,7 +666,12 @@ optimizeConstr topTipe (CAnd l) safety = do
         helper ((CAnd l,info) : rest) accum = helper ( (map (,info) l) ++ rest) accum
         helper ((CImplies (CNot (CSubset  (Intersect lhs1 lhs2) Bottom)) rhs,info) : l) accum | isSingleton lhs1 = helper (((CImplies (CSubset lhs1 lhs2) rhs),info) : l) accum
         helper ((CImplies (CNot (CSubset  (Intersect lhs2 lhs1) Bottom)) rhs,info) : l) accum | isSingleton lhs1 = helper (((CImplies (CSubset lhs1 lhs2) rhs),info) : l) accum
+        helper ((CImplies (CNot (CSubset  (Intersect Top lhs) Bottom)) rhs,info) : l) accum  = helper (((CImplies (CNot (CSubset lhs Bottom)) rhs),info) : l) accum
+        helper ((CImplies (CNot (CSubset  (Intersect lhs Top) Bottom)) rhs,info) : l) accum  = helper (((CImplies (CNot (CSubset lhs Bottom)) rhs),info) : l) accum
+        helper ((CImplies (CNot (CSubset  lhs Bottom)) rhs,info) : l) accum | isSingleton lhs = helper ((rhs,info) : l) accum
+        helper ((CImplies ((CSubset  lhs Bottom)) rhs,info) : l) accum | isSingleton lhs = helper l accum
         helper ((CEqual a (Intersect b a'), info): rest) accum | a == a' = helper ((CSubset a b,info):rest) accum
+        helper ((CSubset a (Intersect b a'), info): rest) accum | a == a' = helper ((CSubset a b,info):rest) accum
         helper (h : rest) accum = helper rest (h : accum)
 optimizeConstr tipe c s = return (tipe, c, s)
 
@@ -677,7 +685,7 @@ toSC c = case c of
     (CEqual l1 l2) -> toSC ((CSubset l1 l2) /\ (CSubset l2 l1))
     CSubset l1 l2 -> SC.CSubset <$> toSCLitNoCycle [] l1 <*> toSCLitNoCycle [] l2
     CImplies c1 c2 -> SC.CImplies <$> (toSC c1) <*> (toSC c2)
-    CIff c1 c2 -> SC.CIff <$> (toSC c1) <*> (toSC c2)
+    -- CIff c1 c2 -> SC.CIff <$> (toSC c1) <*> (toSC c2)
 
 toSCLitNoCycle :: (ConstrainM m) => [Variable] -> LitPattern -> m SC.Expr
 toSCLitNoCycle seen l = do
@@ -718,9 +726,9 @@ solveConstraint c = do
     -- liftIO $ putStrLn "Solved Pattern Match constraints"
     return ret
 
-(<==>) ::  Constraint -> Constraint -> Constraint
-CTrue <==> y = y
-x <==> y =  CIff x y
+-- (<==>) ::  Constraint -> Constraint -> Constraint
+-- CTrue <==> y = y
+-- x <==> y =  CIff x y
 
 (==>) ::  Constraint -> Constraint -> Constraint
 CTrue ==> y = y
@@ -989,8 +997,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
                 \(pat, lit, rhs) -> do
                     -- v <- freshVar
                     let canBeInBranch = ( toLit inputPatterns `intersect` lit) </< Bottom
-                    (newEnv, newEnvConstr, newType) <- envAfterMatch tyMap (toLit inputPatterns) pat 
-                    unifyTypes inputPatterns newType
+                    (newEnv, newEnvConstr) <- envAfterMatch tyMap (toLit inputPatterns) pat 
                     let newPathConstr = canBeInBranch /\ pathConstr
                     (rhsTy, rhsConstrs) <- self (Map.union newEnv _Gamma, newPathConstr) rhs
                     --If this branch is reachable, then we emit a constraint saying
@@ -1017,8 +1024,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
                     --All values of function types must be lambdas, so we have a trivial constraint on v3
                     let lamConstr = (v3 ==== litLambda)
                     --Get the environment to check the body
-                    (newEnv, newEnvConstr, newType) <- envAfterMatch tyMap (toLit dom) argPat
-                    unifyTypes newType dom
+                    (newEnv, newEnvConstr) <- envAfterMatch tyMap (toLit dom) argPat
                     --Check the body --TODO path constr?
                     bodyConstr <- lamHelper argPats cod (Map.union newEnv _Gamma, pathConstr)
                     return $ newEnvConstr /\ bodyConstr /\ lamConstr
@@ -1077,8 +1083,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  = do
         (letType, letConstr) <- self _GammaPath letExp
         --Safety constraint: must match whatever we are binding
         tellSafety pathConstr (letType << lit) region PatError.BadCase [pat]
-        (envExt, envExtConstr, newType) <- envAfterMatch tyMap (toLit letType) pat
-        unifyTypes newType letType
+        (envExt, envExtConstr) <- envAfterMatch tyMap (toLit letType) pat
         --TODO extend path cond
         (bodyType, bodyConstr) <- self (Map.union envExt _Gamma, pathConstr) inExp
         --Whole expression has type of body
@@ -1246,8 +1251,7 @@ constrainDefUnrolled tyMap _GammaPath@(_Gamma, pathConstr) def = do
     where
         constrainDef_ x  (argPat : argList) body ((Fun dom cod) :@ vFun) _Gamma = do
             --Add the argument pattern vars to the dictionary, then check the rest at the codomain type
-            (envExt, envExtConstr, newType) <- (envAfterMatch tyMap (toLit dom) argPat)
-            unifyTypes newType dom
+            (envExt, envExtConstr) <- (envAfterMatch tyMap (toLit dom) argPat)
             retConstr <- constrainDef_ x argList body cod (Map.union envExt  _Gamma)
             return (envExtConstr /\ retConstr)
         constrainDef_ x  [] body exprType _Gamma = do
@@ -1344,39 +1348,56 @@ unionToLitPattern fuel unionMap u (Can.TType _ _ targs )  | fuel >= 0 =
     in unions $ map componentForCtor (Can._u_alts u) 
 unionToLitPattern _ _ _ _ = Top
 
-getProjections :: (ConstrainM m) => String -> Arity -> LitPattern -> m (Constraint, [LitPattern])
-getProjections name arity pat = do
-    projName <- freshName "projVar"
-    let argnums = [1 .. getArity arity]
-    projPatterns <- forM argnums $ \i -> SetVar <$> varNamed (projName ++ "_" ++ show i)
-    let partMatchingCtor = pat `intersect` (Ctor name (replicate (getArity arity) Top))
-    let varsMatchProj = (Ctor name projPatterns) ==== partMatchingCtor
-    let emptyIff = CAnd $ map (\proj -> (proj ==== Bottom) <==> (partMatchingCtor ==== Bottom)) projPatterns
-    return (varsMatchProj /\ emptyIff, projPatterns)
 
-envAfterMatch :: (ConstrainM m) => Map.Map R.Region Can.Type ->  LitPattern  -> Can.Pattern -> m (Gamma, Constraint, TypeEffect)
-envAfterMatch tyMap matchedPat (A.At region pat)  = do
-    ourType <-
-            case Map.lookup region tyMap of
-                Nothing -> error $ "envAfterMatch: Can't find region " ++ (show region) ++ " in type map " ++ (show tyMap)
-                Just s-> addEffectVars s
-    let ctorProjectionEnvs  topPat nameString ctorArgPats = do
+-- getFullProjections :: (ConstrainM m) => String -> Arity -> LitPattern -> m (Constraint, [LitPattern])
+-- getFullProjections name arity pat = do
+--     projName <- freshName "projVar"
+--     let argnums = [1 .. getArity arity]
+--     projPatterns <- forM argnums $ \i -> SetVar <$> varNamed (projName ++ "_" ++ show i)
+--     let partMatchingCtor = pat `intersect` (Ctor name (replicate (getArity arity) Top))
+--     let varsMatchProj = (Ctor name projPatterns) ==== partMatchingCtor
+--     let emptyIff = CAnd $ map (\proj -> (proj ==== Bottom) <==> (partMatchingCtor ==== Bottom)) projPatterns
+--     return (varsMatchProj /\ emptyIff, projPatterns)
+
+
+
+envAfterMatch :: (ConstrainM m) => Map.Map R.Region Can.Type -> LitPattern  -> Can.Pattern -> m (Gamma, Constraint)
+envAfterMatch tyMap topLit pat = do
+    (env, patLit, shapeLit) <- envAfterMatchHelper tyMap pat
+    --Constrain that everything in the discrinimee's effect matching the pattern
+    --Is contained in the pattern that contains the projection variables 
+    return (env, (shapeLit `intersect` topLit) << patLit)
+
+--Generate fresh type-effect variables for each pattern variable
+--And combine the patterns into the LitPattern and Env for the entire matched pattern
+--envAfterMatch takes this and emits the constraint that it contains at least the portion of the input matching the pattern
+--This is a conservative approximation  
+--Also returns the "shape" of the pattern
+--That we can use to get the matched parts out of the discriminee
+envAfterMatchHelper :: (ConstrainM m) => Map.Map R.Region Can.Type   -> Can.Pattern -> m (Gamma, LitPattern, LitPattern)
+envAfterMatchHelper tyMap  (A.At region pat)  = do
+
+    let ctorProjectionEnvs  nameString ctorArgPats = do
             let arity = Arity (length ctorArgPats)
-            (projConstrs, subPats) <- getProjections nameString arity topPat
-            (subDicts, subConstrs, _) <- unzip3 <$> zipWithM  ((envAfterMatch tyMap) ) subPats ctorArgPats
-            return $ (Map.unions subDicts,  projConstrs /\  CAnd subConstrs) --TODO put back 
-    (ret1, ret2 ) <- case pat of
-        Can.PVar x -> return $ (Map.singleton x (monoscheme ourType matchedPat), CTrue)
+            (subDicts, subEffects, subShapes) <- unzip3 <$> mapM  ((envAfterMatchHelper tyMap) )  ctorArgPats
+            return $ (Map.unions subDicts,  Ctor nameString subEffects, Ctor nameString subShapes) --TODO put back 
+    case pat of
+        --Variable: we return the input type, with its 
+        Can.PVar x -> do
+            ourType <-
+                case Map.lookup region tyMap of
+                    Nothing -> error $ "envAfterMatch: Can't find region " ++ (show region) ++ " in type map " ++ (show tyMap)
+                    Just s-> addEffectVars s
+            return $ (Map.singleton x (monoschemeVar ourType), toLit ourType, Top)
         Can.PCtor { Can._p_name = ctorName, Can._p_args = ctorArgs } ->
-            ctorProjectionEnvs matchedPat (N.toString ctorName) $ map Can._arg ctorArgs
-        (Can.PTuple p1 p2 (Just p3)) -> ctorProjectionEnvs matchedPat ctorTriple [p1, p2, p3]
-        (Can.PTuple p1 p2 Nothing) -> ctorProjectionEnvs matchedPat ctorPair [p1, p2]
-        (Can.PList []) -> return $ (Map.empty, CTrue) --Nothing to add to env for Null
+            ctorProjectionEnvs  (N.toString ctorName) $ map Can._arg ctorArgs
+        (Can.PTuple p1 p2 (Just p3)) -> ctorProjectionEnvs  ctorTriple [p1, p2, p3]
+        (Can.PTuple p1 p2 Nothing) -> ctorProjectionEnvs  ctorPair [p1, p2]
+        (Can.PList []) -> return $ (Map.empty, Top, Top) --Nothing to add to env for Null
         --For lists, we get split into head and tail and handle recursively
-        (Can.PList (p1 : pList)) -> ctorProjectionEnvs matchedPat ctorCons [p1, A.At region (Can.PList pList)]
-        (Can.PCons p1 p2) -> ctorProjectionEnvs matchedPat ctorCons [p1, p2]
-        _ -> return $ (Map.empty, CTrue)
-    return (ret1, ret2, ourType)
+        (Can.PList (p1 : pList)) -> ctorProjectionEnvs  ctorCons [p1, A.At region (Can.PList pList)]
+        (Can.PCons p1 p2) -> ctorProjectionEnvs  ctorCons [p1, p2]
+        _ -> return $ (Map.empty, Top, Top)
     
 
     
