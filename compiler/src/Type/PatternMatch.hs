@@ -663,6 +663,7 @@ optimizeConstr topTipe (CAnd l) safety = do
         helper ((CAnd l,info) : rest) accum = helper ( (map (,info) l) ++ rest) accum
         helper ((CImplies (CNot (CSubset  (Intersect lhs1 lhs2) Bottom)) rhs,info) : l) accum | isSingleton lhs1 = helper (((CImplies (CSubset lhs1 lhs2) rhs),info) : l) accum
         helper ((CImplies (CNot (CSubset  (Intersect lhs2 lhs1) Bottom)) rhs,info) : l) accum | isSingleton lhs1 = helper (((CImplies (CSubset lhs1 lhs2) rhs),info) : l) accum
+        helper ((CEqual a (Intersect b a'), info): rest) accum | a == a' = helper ((CSubset a b,info):rest) accum
         helper (h : rest) accum = helper rest (h : accum)
 optimizeConstr tipe c s = return (tipe, c, s)
 
