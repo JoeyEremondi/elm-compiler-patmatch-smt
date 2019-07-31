@@ -55,6 +55,7 @@ import Data.Semigroup
 import Data.Monoid
 
 import qualified Data.List as List
+import qualified Data.Set as Set
 
 import qualified Reporting.Result as Result
 
@@ -529,13 +530,12 @@ simplifyLit (Neg l) = case simplifyLit l of
     sl -> Neg sl
 simplifyLit l = l
 
-pairsToGraphMap :: (Ord a) => [[(a,a)]] -> [(a,a,[a])]
-pairsToGraphMap edges = 
+pairsToGraphMap :: (Ord a) => [a] -> [(a,a)] -> [(a,a,[a])]
+pairsToGraphMap vertices edges = 
     let
-        startMap = foldr (\eList mapSoFar -> foldr (\v m -> Map.insert (fst v) [] m) mapSoFar eList) Map.empty edges
-        insertIntoList k new theMap = Map.insert k (new : (theMap Map.! k)) theMap  
-        edgeMap = foldr (\eList mapSoFar -> foldr (\v m -> Map.insert (fst v) [] m) mapSoFar eList) startMap edges 
-    in  map (\(a,b) -> (a,a, List.nub b)) $ Map.toList edgeMap
+        startPairs = (map (\(a) -> (a,Set.singleton a)) vertices) ++ (map  (\(a,b) -> (a,Set.singleton b)) edges)
+        edgeMap = Map.fromListWith Set.union startPairs 
+    in  map (\(a,b) -> (a,a, Set.toList b)) $ Map.toList edgeMap
 
 removeUnreachableConstraints :: (ConstrainM m) => [Variable] -> [(Constraint, a)] -> [Constraint] -> ([(Constraint,a)] -> m () )-> m [(Constraint, a)]
 removeUnreachableConstraints initial candidateConstrs allConstrs discharge = do
@@ -559,8 +559,10 @@ removeUnreachableConstraints initial candidateConstrs allConstrs discharge = do
     -- logIO $ " All edges: " ++ show allEdges
     --Get our edges into the format Data.Graph expects
     --i.e. an adjacency list for each vertex (variable)
-    let (graph, nodeFromVertex, vertexFromKey) = Graph.graphFromEdges $ pairsToGraphMap allEdges 
-        initialVertices = map (Maybe.fromJust . vertexFromKey) initialStrings
+    -- logIO $ "Got graph edges " ++ show (pairsToGraphMap allVertices allEdges)
+    let (graph, nodeFromVertex, vertexFromKey) = Graph.graphFromEdges $ pairsToGraphMap allVars $ concat allEdges 
+    logIO $ "Vertex values for each initial node " ++ show (zip initialStrings (map vertexFromKey initialStrings))
+    let initialVertices = map (Maybe.fromJust . vertexFromKey) initialStrings
         toNode = ((\(a,_,_)->a) . nodeFromVertex )
         reachabilityMap = Map.fromList [ (toNode v, map toNode $ Graph.reachable graph v) | v <- initialVertices]
         reachableVertices = List.nub $ concatMap (\v -> Maybe.fromMaybe [] $ Map.lookup v reachabilityMap  )  allVars
@@ -600,7 +602,7 @@ removeUnreachableConstraints initial candidateConstrs allConstrs discharge = do
             case cEdgePairs of
                 [] -> map (\x -> [x]) unreachable
                 _ -> let
-                        (cgraph, cnodeFromVertex, cvertexFromKey) = Graph.graphFromEdges $ pairsToGraphMap cEdgePairs
+                        (cgraph, cnodeFromVertex, cvertexFromKey) = Graph.graphFromEdges $ pairsToGraphMap unreachable $ concat cEdgePairs
                     -- liftIO $ putStrLn $ "Connected components "  
                     in map  (map $ (\(a,_,_) -> a) . cnodeFromVertex ) $ map toList $  Graph.components cgraph
     forM_ ccomps $ \comp -> 
