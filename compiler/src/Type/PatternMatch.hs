@@ -547,15 +547,12 @@ removeUnreachableConstraints initial candidateConstrs allConstrs discharge = do
     allVars <- fmap (map fst) $ liftIO $ mapM UF.get $  List.nub $ initial ++ (concatMap constrFreeVars allConstrs)
     --Two variables are connected if they occur in the same constraint
     --We generate the pairs of all variables in a given constraint
-    let edgesFor c = do
-        let nodesForC = constrFreeVars c
-        let pairs = [(c1, c2) | c1 <- nodesForC, c2 <- nodesForC]
-        forM pairs $ \(c1, c2) -> do
-            r1 <- liftIO $ UF.get c1
-            r2 <- liftIO $ UF.get c2
-            return (fst r1, fst r2)
+    let constrVarPairs = map (\c -> (c, constrFreeVars c)) allConstrs
+    let edgesFor (c, nodesForCRaw) = do
+        nodesForC <- forM nodesForCRaw (liftIO . UF.get)
+        return [(fst c1, fst c2) | c1 <- nodesForC, c2 <- nodesForC]
     --Combine all the edges from our different constraints
-    allEdges <-  mapM edgesFor  allConstrs
+    allEdges <-  mapM edgesFor  constrVarPairs
     -- logIO $ " All edges: " ++ show allEdges
     --Get our edges into the format Data.Graph expects
     --i.e. an adjacency list for each vertex (variable)
