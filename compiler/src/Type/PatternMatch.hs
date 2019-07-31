@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fwarn-unused-binds #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -79,8 +80,8 @@ import Data.Bifunctor (first, bimap)
 -- trace = Trace.trace
 trace s x = if verbose then (Trace.trace s x) else x
 
-{-# INLINE doLog #-}
-doLog s = when verbose $ putStrLn s
+-- {-# INLINE doLog #-}
+-- doLog s = when verbose $ putStrLn s
 -- doLog s = return ()
 
 {-# INLINE logIO #-}
@@ -243,17 +244,20 @@ p1 ==== p2 =
 deepUnifyTop :: TypeEffect -> Constraint
 deepUnifyTop te = CAnd $ (flip map) (typeFreeVars te) (==== Top)
 
+doDeepUnifyTop :: ConstrainM m => TypeEffect -> m ()
+doDeepUnifyTop te = forM_ (typeFreeVars te) $ \var -> unifyEffects (SetVar var) Top
+
 
 unions :: (Subsetable a, Ord a) => [a] -> LitPattern
 -- unions [] = Bottom
 unions (a : l) = foldr (\ a b ->  (toLit a) `unionPat` b) (toLit a) (List.sort l)
 
-intersects :: (Subsetable a, Ord a) => [a] -> LitPattern
--- intersects [] = Top
-intersects (a : l) = foldr (\ a b ->  (toLit a) `intersectPat` b) (toLit a) (List.sort l)
+-- intersects :: (Subsetable a, Ord a) => [a] -> LitPattern
+-- -- intersects [] = Top
+-- intersects (a : l) = foldr (\ a b ->  (toLit a) `intersectPat` b) (toLit a) (List.sort l)
 
-union :: (Subsetable a, Subsetable b) => a -> b -> LitPattern
-union a b = unionPat (toLit a) (toLit b)
+-- union :: (Subsetable a, Subsetable b) => a -> b -> LitPattern
+-- union a b = unionPat (toLit a) (toLit b)
 
 intersect :: (Subsetable a, Subsetable b) => a -> b -> LitPattern
 intersect a b = intersectPat (toLit a) (toLit b)
@@ -315,9 +319,9 @@ data EffectScheme =
 
 type Gamma = Map.Map N.Name EffectScheme
 
-monoscheme :: TypeEffect -> LitPattern -> EffectScheme
-monoscheme tipe@(_ :@ var) lit =
-    Forall [] tipe (var ==== lit) (Safety [])
+-- monoscheme :: TypeEffect -> LitPattern -> EffectScheme
+-- monoscheme tipe@(_ :@ var) lit =
+--     Forall [] tipe (var ==== lit) (Safety [])
 
 monoschemeVar :: TypeEffect -> EffectScheme
 monoschemeVar tipe = Forall [] tipe CTrue (Safety [])
@@ -327,8 +331,8 @@ monoschemeVar tipe = Forall [] tipe CTrue (Safety [])
 -- freeConstraintVars :: TypeEffect -> [Variable]
 -- freeConstraintVars ty = [] --TODO implement
 
-traverseTE :: (TypeEffect -> TypeEffect) -> TypeEffect -> TypeEffect
-traverseTE f (t :@ e) = f ((f <$>  t) :@ e)
+-- traverseTE :: (TypeEffect -> TypeEffect) -> TypeEffect -> TypeEffect
+-- traverseTE f (t :@ e) = f ((f <$>  t) :@ e)
 
 typeSubsts :: (Variable -> Variable) -> TypeEffect -> TypeEffect
 typeSubsts sub (t :@ e) =
@@ -371,10 +375,10 @@ litFreeVars (Fix l) =  litLocalVars (Fix l) ++ concatMap litFreeVars ( toList l)
 safetyFreeVars (Safety l) = concatMap  (constrFreeVars . fst ) l
 -- schemeFreeVars (Forall v t c  ) =  (typeFreeVars t) ++ (constrFreeVars c) 
 
-typeFreeTypeVars :: TypeEffect -> [(N.Name, LitPattern)]
-typeFreeTypeVars ty@(t :@ e) =  (typeLocalTypeVars ty) ++ concatMap typeFreeTypeVars (toList t)
-typeLocalTypeVars t@(TypeVar n :@ e) = [(n,e)]
-typeLocalTypeVars (t :@ e) = []
+-- typeFreeTypeVars :: TypeEffect -> [(N.Name, LitPattern)]
+-- typeFreeTypeVars ty@(t :@ e) =  (typeLocalTypeVars ty) ++ concatMap typeFreeTypeVars (toList t)
+-- typeLocalTypeVars t@(TypeVar n :@ e) = [(n,e)]
+-- typeLocalTypeVars (t :@ e) = []
 
 
 
@@ -391,9 +395,9 @@ freshName s = do
     liftIO $ writeIORef ioref (i + 1)
     return $ s ++ "_" ++  show i
 
-varNamed :: (ConstrainM m) => String -> m Variable
-varNamed s =
-    liftIO $ UF.fresh (s, Nothing)
+-- varNamed :: (ConstrainM m) => String -> m Variable
+-- varNamed s =
+--     liftIO $ UF.fresh (s, Nothing)
 
 freshVar :: (ConstrainM m) => m Variable
 freshVar = do
@@ -599,7 +603,7 @@ removeUnreachableConstraints initial candidateConstrs allConstrs discharge = do
             case cEdgePairs of
                 [] -> map (\x -> [x]) unreachable
                 _ -> let
-                        (cgraph, cnodeFromVertex, cvertexFromKey) = Graph.graphFromEdges $ pairsToGraphMap unreachable $ concat cEdgePairs
+                        (cgraph, cnodeFromVertex, _cvertexFromKey) = Graph.graphFromEdges $ pairsToGraphMap unreachable $ concat cEdgePairs
                     -- liftIO $ putStrLn $ "Connected components "  
                     in map  (map $ (\(a,_,_) -> a) . cnodeFromVertex ) $ map toList $  Graph.components cgraph
     forM_ ccomps $ \comp -> 
@@ -940,13 +944,13 @@ unifyTypes (t1 :@ v1) (t2 :@ v2) = do
 
 type ConstrainM m = (State.MonadState (IORef Int) m, MonadIO m, MonadWriter Safety m, MonadError PatError.Error m )
 
-eitherToPatError :: (ConstrainM m) => m (Either String a) -> m a
-eitherToPatError comp = do
-    eitherVal <- comp
-    case eitherVal of
-        Right x -> return x
-        Left s -> error s
-        --PatError.Incomplete _ PatError.BadArg [Pattern] 
+-- eitherToPatError :: (ConstrainM m) => m (Either String a) -> m a
+-- eitherToPatError comp = do
+--     eitherVal <- comp
+--     case eitherVal of
+--         Right x -> return x
+--         Left s -> error s
+--         --PatError.Incomplete _ PatError.BadArg [Pattern] 
 
 unpackEither :: (ConstrainM m ) => m (Either PatError.Error b) -> m b
 unpackEither ec = do
@@ -1075,7 +1079,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
                 \(pat, lit, rhs) -> do
                     -- v <- freshVar
                     let canBeInBranch = CNonEmpty ( inputPatterns `intersect` lit) 
-                    (newEnv, newEnvConstr) <- envAfterMatch tyMap (toLit inputPatterns) pat
+                    (newEnv, newEnvConstr) <- envAfterCaseMatch tyMap inputPatterns pat
                     let newPathConstr = canBeInBranch /\ pathConstr
                     (rhsTy, rhsConstrs) <- self (Map.union newEnv _Gamma, newPathConstr) rhs
                     --If this branch is reachable, then we emit a constraint saying
@@ -1102,10 +1106,10 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
                     --All values of function types must be lambdas, so we have a trivial constraint on v3
                     let lamConstr = (v3 ==== litLambda)
                     --Get the environment to check the body
-                    (newEnv, newEnvConstr) <- envAfterMatch tyMap (toLit dom) argPat
+                    (newEnv) <- envAfterDefMatch tyMap dom argPat
                     --Check the body --TODO path constr?
                     bodyConstr <- lamHelper argPats cod (Map.union newEnv _Gamma, pathConstr)
-                    return $ newEnvConstr /\ bodyConstr /\ lamConstr
+                    return $ bodyConstr /\ lamConstr
     constrainExpr_ (Can.Call fun args) retEffect _GammaPath@(_Gamma, pathConstr) = do
          (funTy, funConstr) <- self _GammaPath fun
          (argTEs, argConstrs) <- unzip <$> mapM (self _GammaPath) args
@@ -1163,12 +1167,12 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
         (letType, letConstr) <- self _GammaPath letExp
         --Safety constraint: must match whatever we are binding
         tellSafety [Can.CaseBranch pat inExp] pathConstr (letType << lit) region PatError.BadCase [pat]
-        (envExt, envExtConstr) <- envAfterMatch tyMap (toLit letType) pat
+        (envExt) <- envAfterDefMatch tyMap letType pat
         --TODO extend path cond
         (bodyType, bodyConstr) <- self (Map.union envExt _Gamma, pathConstr) inExp
         --Whole expression has type of body
         unifyTypes bodyType t
-        return $ envExtConstr /\ letConstr /\ bodyConstr
+        return $ letConstr /\ bodyConstr
     constrainExpr_ (Can.Accessor expr) t _GammaPath = return $ deepUnifyTop t
     constrainExpr_ (Can.Access expr1 expr2) t _GammaPath = return $ deepUnifyTop t
     constrainExpr_ (Can.Update expr1 expr2 expr3) t _GammaPath = return $ deepUnifyTop t
@@ -1338,12 +1342,13 @@ constrainDefUnrolled tyMap _GammaPath@(_Gamma, pathConstr) def = do
     where
         constrainDef_ x  (argPat : argList) body ((Fun dom cod) :@ vFun) _Gamma = do
             --Add the argument pattern vars to the dictionary, then check the rest at the codomain type
-            (envExt, envExtConstr) <- (envAfterMatch tyMap (toLit dom) argPat)
+            (envExt) <- (envAfterDefMatch tyMap dom argPat)
             retConstr <- constrainDef_ x argList body cod (Map.union envExt  _Gamma)
-            return (envExtConstr /\ retConstr)
+            return (retConstr)
         constrainDef_ x  [] body exprType _Gamma = do
             logIO $ "DEF START CONSTRAIN for " ++ N.toString x ++ "  with Gamma  " ++ show _Gamma
             (bodyType, bodyConstr) <- constrainExpr tyMap (_Gamma, pathConstr) body
+            logIO $ "CONSTRAINDEF: Unifying inferred type " ++ show bodyType ++ "  with annotation type " ++ show exprType
             unifyTypes bodyType exprType
             --Now that we have the type and constraints for our definition body
             --We can generalize it into a type scheme and return a new environment 
@@ -1448,12 +1453,19 @@ unionToLitPattern _ _ _ _ = Top
 
 
 
-envAfterMatch :: (ConstrainM m) => Map.Map R.Region Can.Type -> LitPattern  -> Can.Pattern -> m (Gamma, Constraint)
-envAfterMatch tyMap topLit pat = do
-    (env, patLit, shapeLit) <- envAfterMatchHelper tyMap pat
+envAfterCaseMatch :: (ConstrainM m) => Map.Map R.Region Can.Type -> TypeEffect  -> Can.Pattern -> m (Gamma, Constraint)
+envAfterCaseMatch tyMap topType pat = do
+    (env, patType, shapeLit) <- envAfterMatchHelper tyMap pat
     --Constrain that everything in the discrinimee's effect matching the pattern
     --Is contained in the pattern that contains the projection variables 
-    return (env, (shapeLit `intersect` topLit) << patLit)
+    return (env, (shapeLit `intersect` topType) << patType)
+
+envAfterDefMatch :: (ConstrainM m) => Map.Map R.Region Can.Type -> TypeEffect  -> Can.Pattern -> m (Gamma)
+envAfterDefMatch tyMap topType pat = do
+    (env, patType, shapeLit) <- envAfterMatchHelper tyMap pat
+    --Constrain the type of the defined pattern is the same as the type put in the environment
+    unifyTypes patType topType
+    return env
 
 --Generate fresh type-effect variables for each pattern variable
 --And combine the patterns into the LitPattern and Env for the entire matched pattern
@@ -1461,30 +1473,35 @@ envAfterMatch tyMap topLit pat = do
 --This is a conservative approximation  
 --Also returns the "shape" of the pattern
 --That we can use to get the matched parts out of the discriminee
-envAfterMatchHelper :: (ConstrainM m) => Map.Map R.Region Can.Type   -> Can.Pattern -> m (Gamma, LitPattern, LitPattern)
+envAfterMatchHelper :: (ConstrainM m) => Map.Map R.Region Can.Type   -> Can.Pattern -> m (Gamma, TypeEffect, LitPattern)
 envAfterMatchHelper tyMap  (A.At region pat)  = do
 
-    let ctorProjectionEnvs  nameString ctorArgPats = do
+    let ctorProjectionEnvs ourType nameString ctorArgPats = do
             let arity = Arity (length ctorArgPats)
             (subDicts, subEffects, subShapes) <- unzip3 <$> mapM  ((envAfterMatchHelper tyMap) )  ctorArgPats
-            return $ (Map.unions subDicts,  Ctor nameString subEffects, Ctor nameString subShapes) --TODO put back 
+            unifyEffects (toLit ourType) $ Ctor nameString (map toLit subEffects)
+            return $ (Map.unions subDicts, ourType, Ctor nameString subShapes) --TODO put back 
+    ourType <-
+        case Map.lookup region tyMap of
+            Nothing -> error $ "envAfterMatch: Can't find region " ++ (show region) ++ " in type map " ++ (show tyMap)
+            Just s-> addEffectVars s
     case pat of
         --Variable: we return the input type, with its 
-        Can.PVar x -> do
-            ourType <-
-                case Map.lookup region tyMap of
-                    Nothing -> error $ "envAfterMatch: Can't find region " ++ (show region) ++ " in type map " ++ (show tyMap)
-                    Just s-> addEffectVars s
-            return $ (Map.singleton x (monoschemeVar ourType), toLit ourType, Top)
+        Can.PVar x -> 
+            return $ (Map.singleton x (monoschemeVar ourType), ourType, Top)
         Can.PCtor { Can._p_name = ctorName, Can._p_args = ctorArgs } ->
-            ctorProjectionEnvs  (N.toString ctorName) $ map Can._arg ctorArgs
-        (Can.PTuple p1 p2 (Just p3)) -> ctorProjectionEnvs  ctorTriple [p1, p2, p3]
-        (Can.PTuple p1 p2 Nothing) -> ctorProjectionEnvs  ctorPair [p1, p2]
-        (Can.PList []) -> return $ (Map.empty, Top, Top) --Nothing to add to env for Null
+            ctorProjectionEnvs ourType  (N.toString ctorName) $ map Can._arg ctorArgs
+        (Can.PTuple p1 p2 (Just p3)) -> ctorProjectionEnvs ourType ctorTriple [p1, p2, p3]
+        (Can.PTuple p1 p2 Nothing) -> ctorProjectionEnvs ourType ctorPair [p1, p2]
+        (Can.PList []) -> do
+            unifyEffects (toLit ourType) litNull
+            return $ (Map.empty, ourType, Top) --Nothing to add to env for Null
         --For lists, we get split into head and tail and handle recursively
-        (Can.PList (p1 : pList)) -> ctorProjectionEnvs  ctorCons [p1, A.At region (Can.PList pList)]
-        (Can.PCons p1 p2) -> ctorProjectionEnvs  ctorCons [p1, p2]
-        _ -> return $ (Map.empty, Top, Top)
+        (Can.PList (p1 : pList)) -> ctorProjectionEnvs ourType  ctorCons [p1, A.At region (Can.PList pList)]
+        (Can.PCons p1 p2) -> ctorProjectionEnvs ourType ctorCons [p1, p2]
+        _ -> do
+            doDeepUnifyTop ourType
+            return $ (Map.empty, ourType, Top)
 
 
 
