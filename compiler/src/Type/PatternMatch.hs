@@ -341,6 +341,7 @@ typeSubsts sub (t :@ e) =
 constrSubsts :: (Variable -> Variable) -> Constraint -> Constraint
 constrSubsts sub c@(CSubset p1 p2) =  CSubset (litSubsts sub p1) (litSubsts sub p2)
 constrSubsts sub c@(CEqual p1 p2) =  CEqual (litSubsts sub p1) (litSubsts sub p2)
+constrSubsts sub c@(CNonEmpty  p1 ) =  CNonEmpty (litSubsts sub p1) 
 constrSubsts sub (Fix c) =   Fix (constrSubsts sub <$> c)
 
 safetySubsts sub (Safety l) = Safety $ (fmap . first)  (constrSubsts sub ) l
@@ -463,6 +464,7 @@ subConstrVars (Fix c) =
     case c of
         (CSubset_ l1 l2) -> CSubset <$> (subLitVars l1) <*> (subLitVars l2)
         (CEqual_ l1 l2) -> CEqual <$> (subLitVars l1) <*> (subLitVars l2)
+        (CNonEmpty_ l1) -> CNonEmpty <$> (subLitVars l1) 
         _ -> Fix <$> mapM subConstrVars c
 -- subLitVars :: LitPattern -> m LitPattern
 subLitVars (Fix l) = case l of
@@ -497,6 +499,8 @@ simplifyConstraint (CNonEmpty x) = case simplifyLit x of
     Intersect b a | isSingleton a -> simplifyConstraint $ CSubset a b
     xs -> if isSingleton xs then CTrue else CNonEmpty xs
 simplifyConstraint (CSubset x y) = case (simplifyLit x, simplifyLit y) of
+    (Top, rhs@(SetVar _)) -> CEqual rhs Top
+    (lhs@(SetVar _), Bottom) -> CEqual lhs Bottom
     (_, Top) -> CTrue
     (Intersect a b, a') | a == a' -> CTrue 
     (Intersect b a, a') | a == a' -> CTrue
@@ -730,6 +734,14 @@ optimizeConstr graphOpts topTipe (CAnd l) safety = do
                     helper rest accum
                 Just l2 -> helper ((CEqual l1 l2,info ) : rest) accum
         helper ((CEqual (SetVar v) l1, info ): rest) accum = do
+            (name, mval) <- liftIO $ UF.get v
+            case mval of
+                Nothing -> do
+                    liftIO $ UF.set v (name, Just l1)
+                    helper rest accum
+                Just l2 -> helper ((CEqual l1 l2, info ) : rest) accum
+        --TODO avoid duplication with above
+        helper ((CEqual l1 (SetVar v), info ): rest) accum = do
             (name, mval) <- liftIO $ UF.get v
             case mval of
                 Nothing -> do
