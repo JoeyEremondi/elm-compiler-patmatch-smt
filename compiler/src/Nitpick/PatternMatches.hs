@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Nitpick.PatternMatches
   ( check
+  , checkCases
   , Error(..)
   , Context(..)
   , Pattern(..)
