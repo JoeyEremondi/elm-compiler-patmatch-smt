@@ -360,6 +360,7 @@ litSubsts sub (Fix l) =   Fix (litSubsts sub <$> l)
 
 typeLocalVars (t :@ e) = litFreeVars e
 constrLocalVars (CSubset p1 p2) = (litFreeVars p1) ++ (litFreeVars p2)
+constrLocalVars (CNonEmpty p1) = (litFreeVars p1)
 constrLocalVars (CEqual p1 p2) = (litFreeVars p1) ++ (litFreeVars p2)
 constrLocalVars c = []
 litLocalVars (SetVar v) = unsafePerformIO $ do
@@ -443,7 +444,9 @@ instantiate (Forall boundVars tipe constr safety) = do
 generalize :: (ConstrainM m) => Gamma -> TypeEffect -> Constraint -> Safety -> m EffectScheme
 generalize _Gamma tipe constr safety = do
     let allFreeVars_dupes = (typeFreeVars tipe) ++ constrFreeVars constr ++ safetyFreeVars safety
+    logIO $ "GENERALIZE: free vars with duples" ++ show allFreeVars_dupes
     allFreeVars <- liftIO $ List.nub <$> mapM UF.repr allFreeVars_dupes
+    logIO $ "GENERALIZE: free vars " ++ show allFreeVars
     let schemeVars (Forall bnd (t :@ lit) sconstr ssafety) = liftIO $ do
             let vEff = litFreeVars lit
             let vConstr = constrFreeVars sconstr
@@ -452,6 +455,7 @@ generalize _Gamma tipe constr safety = do
             boundReprs <- mapM UF.repr bnd
             return $ reprs List.\\ boundReprs
     gammaFreeVars <- (List.nub . concat) <$> mapM schemeVars (Map.elems _Gamma)
+    logIO $ "GENERALIZE: gamma free vars " ++ show gammaFreeVars
     return $  Forall (allFreeVars List.\\ gammaFreeVars) tipe constr safety
 
 
