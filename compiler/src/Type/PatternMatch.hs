@@ -650,6 +650,8 @@ dischargeSafety comp = do
                     logIO "FAILED TO DISCHARGE"
                     throwError $ PatError.Incomplete region context (map PatError.simplify pats )
 
+getVarName :: forall m . (ConstrainM m) => Variable -> m String 
+getVarName v = fst <$> (liftIO $ UF.get v)              
 
 optimizeConstr :: forall m . (ConstrainM m) => Bool -> TypeEffect  -> Constraint -> Safety -> m (TypeEffect, Constraint, Safety)
 optimizeConstr _ tipe (CAnd []) safety = return (tipe, CTrue, safety)
@@ -694,7 +696,6 @@ optimizeConstr graphOpts topTipe (CAnd l) safety = do
         removeDead graphOpts clistWithInter totalList tp discharge = do
             let
                 tfVars = typeFreeVars tp
-                allVars = List.nub $ tfVars ++ concatMap constrFreeVars totalList
                 --First we remove constraints of the form
                 -- X << pat 
                 -- or the form (pat << X)
@@ -703,28 +704,33 @@ optimizeConstr graphOpts topTipe (CAnd l) safety = do
                 occurrences = map constrFreeVars totalList
             -- logIO $ "All occurrences: " ++ show (zip3 totalList (map (\(Fix c) -> toList c) totalList) occurrences)
             -- logIO $ "Type free vars: " ++ show tfVars ++ "  for  " ++ show tp
+            allVars <- List.nub <$> (forM (tfVars ++ concatMap constrFreeVars totalList) (\ x -> getVarName x))
+            tfReps <- forM tfVars (\x -> getVarName x)
             ocList <- forM (tfVars ++ concat occurrences) (\ pt -> (fmap fst ) $ liftIO $ UF.get pt)
             -- logIO $ "Bare occurreces: " ++ show occurrences
             -- logIO $ "OCList " ++ show ocList
             let
 
                 
-
                 varIsLHS v c = case c of
-                    CSubset (SetVar v') _ | v == v' -> True
-                    _ -> False
+                    CSubset (SetVar v') _ -> do
+                        r1 <- getVarName v'
+                        return $ r1 == v 
+                    _ -> return False
 
                 maybeLHSforRHSVar v c = case c of
-                    CSubset other (SetVar v')  | v == v' -> Just other
-                    _ -> Nothing
+                    CSubset other (SetVar v') -> do
+                        r1 <- getVarName v'
+                        case (r1 == v ) of 
+                            True -> return $ Just other
+                            False -> return Nothing 
+                    _ -> return $ Nothing
 
-                varIsIntermediate vinit = do
-                    v <- liftIO $ UF.repr vinit
-                    r1 <- fst <$> (liftIO $ UF.get v)
-                    let numOccs = length $ filter (== r1) ocList
-                        numLHS = length $ filter  (varIsLHS v) totalList
-                        lhsForRHSOccs =  Maybe.catMaybes $ map (maybeLHSforRHSVar v) totalList
-                    case (numOccs == numLHS + length lhsForRHSOccs, v `elem` tfVars) of
+                varIsIntermediate v = do
+                    let numOccs = length $ filter (== v) ocList
+                    numLHS <- length <$> filterM  (varIsLHS v) totalList
+                    lhsForRHSOccs <-  Maybe.catMaybes <$> mapM (maybeLHSforRHSVar v) totalList
+                    case (numOccs == numLHS + length lhsForRHSOccs, v `elem` tfReps) of
                         (True, False) -> return $ Just (v, lhsForRHSOccs)  
                         _ -> return Nothing
 
@@ -746,13 +752,19 @@ optimizeConstr graphOpts topTipe (CAnd l) safety = do
             logIO $ "Got varInterMap " ++ show varInterMap
             --If a variable only serves as an intermediate (i.e. A < B, A' < B, B < C)
             --then eliminate it (i.e. into A < C, A' < C)
-            let clist = (flip concatMap) clistWithInter $ \(c, info) -> 
+            clist <- (fmap concat ) $ forM clistWithInter $ \(c, info) -> 
                     case c of
-                        CSubset (SetVar v) rhs -> case Map.lookup v varInterMap of
-                            Nothing -> [(c, info)]
-                            Just lhses -> map (\lhs -> (CSubset lhs rhs, info)) lhses
-                        CSubset _ (SetVar v) | Map.member v varInterMap -> []
-                        _ -> [(c,info)] 
+                        CSubset (SetVar var) rhs -> do 
+                            v <- getVarName var
+                            case Map.lookup v varInterMap of
+                                Nothing -> return [(c, info)]
+                                Just lhses -> return $ map (\lhs -> (CSubset lhs rhs, info)) lhses
+                        CSubset _ (SetVar var) -> do
+                            v <- getVarName var
+                            return $ case Map.member v varInterMap of
+                                True -> []
+                                False -> [(c,info)]
+                        _ -> return [(c,info)] 
             boolList <- forM clist (\x -> (fmap not) $ constrIsDead (fst x))
             let boolPairList = zip boolList clist
             let (easyFiltered, easyDeleted) = List.partition fst boolPairList
