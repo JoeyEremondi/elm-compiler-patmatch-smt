@@ -187,6 +187,7 @@ pattern CImplies x y = Fix (CImplies_ x y)
 pattern CSubset x y = Fix (CSubset_ x y)
 pattern CEqual x y = Fix (CEqual_ x y)
 pattern CTrue = Fix CTrue_
+pattern CFalse = Fix (CSubset_ Top Bottom)
 pattern CNonEmpty x = Fix (CNonEmpty_ x)
 
 instance Show Constraint where
@@ -389,6 +390,12 @@ isSingleton :: LitPattern -> Bool
 isSingleton (Ctor _ args) = all isSingleton args
 isSingleton _ = False
 
+--Is this pattern for sure not empty
+forSureNotEmpty :: LitPattern -> Bool
+forSureNotEmpty (Ctor _ args) = all forSureNotEmpty args
+forSureNotEmpty Top = True
+forSureNotEmpty (Union a b) = forSureNotEmpty a && forSureNotEmpty b
+forSureNotEmpty _ = False
 
 freshName :: (ConstrainM m) => String -> m String
 freshName s = do
@@ -492,18 +499,22 @@ simplifyConstraint (CAnd l) =
         _ -> CAnd cl 
 simplifyConstraint (CImplies x y ) = case (simplifyConstraint x) of
     CTrue -> simplifyConstraint y
+    CFalse -> CTrue
     sx -> CImplies (sx) (simplifyConstraint y)
 simplifyConstraint (CNonEmpty x) = case simplifyLit x of
     Top -> CTrue
+    Bottom -> CFalse
     Intersect a b | isSingleton a -> simplifyConstraint $ CSubset a b
     Intersect b a | isSingleton a -> simplifyConstraint $ CSubset a b
-    xs -> if isSingleton xs then CTrue else CNonEmpty xs
+
+    xs -> if forSureNotEmpty xs then CTrue else CNonEmpty xs
 simplifyConstraint (CSubset x y) = case (simplifyLit x, simplifyLit y) of
     (Top, rhs@(SetVar _)) -> CEqual rhs Top
     (lhs@(SetVar _), Bottom) -> CEqual lhs Bottom
     (_, Top) -> CTrue
     (Intersect a b, a') | a == a' -> CTrue 
     (Intersect b a, a') | a == a' -> CTrue
+    (Ctor s1 _, Ctor s2 _) | s1 /= s2 -> CFalse
     (Ctor nm xl, Ctor nm' yl) | nm == nm' -> simplifyConstraint (CAnd $ zipWith CSubset xl yl)
     (xs, ys) -> if  xs == ys then CTrue else CSubset xs ys
 simplifyConstraint (CEqual x y) = case (simplifyLit x, simplifyLit y) of
@@ -522,7 +533,7 @@ simplifyLit (Union x y) =
         (Top, b) -> Top
         (a, Top) -> Top
         (Bottom, b) -> b
-        (Bottom, a) -> a
+        (a, Bottom) -> a
         (Ctor nm xl, Ctor nm' yl) | nm == nm' -> 
             Ctor nm $ map simplifyLit $ zipWith Union xl yl
         (xs, ys) -> Union xs ys
@@ -531,9 +542,12 @@ simplifyLit (Intersect x y) =
         (Bottom, b) -> Bottom
         (a, Bottom) -> Bottom
         (Top, b) -> b
-        (Top, a) -> a
-        (Ctor nm xl, Ctor nm' yl) | nm == nm' -> 
-            Ctor nm $ map simplifyLit $ zipWith Intersect xl yl
+        (a, Top) -> a
+        (Ctor nm xl, Ctor nm' yl)  -> 
+            if nm == nm' then
+                Ctor nm $ map simplifyLit $ zipWith Intersect xl yl
+            else
+                Bottom
         (xs, ys) -> Intersect xs ys
 simplifyLit (Neg l) = case simplifyLit l of
     Neg sl -> sl
@@ -580,7 +594,7 @@ removeUnreachableConstraints initial candidateConstrs allConstrs discharge = do
         -- reachableVertices = map ( (\(a,_,_)->a) . nodeFromVertex . nodeOf) $ toList canReachForest
     --Now, we filter our constraints
     --Keep a constraint if any of its free variables are reachable
-    logIO $ "Reachable vertices: " ++ show reachableVertices
+    -- logIO $ "Reachable vertices: " ++ show reachableVertices
     --A constraint is reachable if one of its variables is reachable from the initial set
     let constraintReachable c = do
         let vars = constrFreeVars c
@@ -637,55 +651,87 @@ dischargeSafety comp = do
                     throwError $ PatError.Incomplete region context (map PatError.simplify pats )
 
 
-
 optimizeConstr :: forall m . (ConstrainM m) => Bool -> TypeEffect  -> Constraint -> Safety -> m (TypeEffect, Constraint, Safety)
 optimizeConstr _ tipe (CAnd []) safety = return (tipe, CTrue, safety)
 optimizeConstr graphOpts topTipe (CAnd l) safety = do
-    let totalList = ((map fst $ unSafety safety) ++ l)
-    (optimizedPairs, tInter) <-  doOpts graphOpts topTipe (map (,()) l) totalList (\x -> logIO $ "AUTOMATICALLY DISCHARGING CONSTR " ++ show x)
-    (optimizedSafetyList, tret) <- doOpts graphOpts tInter (unSafety safety) totalList  dischargeSafety
+    (pairsInter, safetyInter, tInter) <-  doOpts graphOpts topTipe (map (,()) l) (unSafety safety) (\x -> logIO $ "AUTOMATICALLY DISCHARGING CONSTR " ++ show x)
+    (optimizedSafetyList, optimizedPairs, tRet) <- doOpts graphOpts tInter safetyInter pairsInter  dischargeSafety
     let optimizedSafety = Safety optimizedSafetyList
     let optimized = map fst optimizedPairs
     case (optimized == l && optimizedSafety ==  safety) of
-        True -> return $ (tret, CAnd l, optimizedSafety)
-        False -> optimizeConstr graphOpts tret (CAnd optimized) optimizedSafety
+        True -> return $ (tRet, CAnd l, optimizedSafety)
+        False -> optimizeConstr graphOpts tRet (CAnd optimized) optimizedSafety
     where
-        subConstrPairs (c, info) = do
+        subConstrPair (c, info) = do
             csub <- subConstrVars c
             return (simplifyConstraint csub, info)
-        doOpts :: forall a . Bool -> TypeEffect -> [(Constraint, a)] -> [Constraint] -> ([(Constraint, a)] -> m ()) -> m ([(Constraint, a)], TypeEffect)
-        doOpts graphOpts tipe l totalList discharge = do
+        subConstrPairs cList otherList tipe = do
+            csub <- forM cList subConstrPair
+            otherSub <- forM otherList subConstrPair
+            newType <- subTypeVars tipe
+            return (csub, otherSub, newType)
+        doOpts :: forall a b. 
+            Bool 
+            -> TypeEffect 
+            -> [(Constraint, a)] 
+            -> [(Constraint, b)] 
+            -> ([(Constraint, a)] -> m ()) 
+            -> m ([(Constraint, a)], [(Constraint, b)], TypeEffect)
+        doOpts graphOpts tipe l others discharge = do
             logIO ("Initial list:\n" ++ show (map fst l))
-            lSubbed <- forM l subConstrPairs
-            tsubbed <- subTypeVars tipe
+            (lSubbed, oSubbed, tSubbed) <- subConstrPairs l others tipe
             logIO ("After subbed:\n" ++ show (map fst lSubbed))
             optimized <- helper lSubbed []
             logIO ("After opt:\n" ++ show (map fst optimized))
-            ret <- forM optimized subConstrPairs
-            tret <- subTypeVars tsubbed
-            logIO ("After second sub:\n" ++ show (map fst ret))
-            deadRemoved <- removeDead graphOpts ret totalList tret discharge
-            return (deadRemoved, tret)
+            (lRet, oRet, tRet) <- subConstrPairs l others tipe
+            logIO ("After second sub:\n" ++ show (map fst lRet))
+            let totalList = (map fst lRet) ++ (map fst oRet)
+            deadRemoved <- removeDead graphOpts lRet totalList tRet discharge
+            return (deadRemoved, oRet, tRet)
+
+
         removeDead :: Bool -> [(Constraint, a)] -> [Constraint] -> TypeEffect -> ([(Constraint, a)] -> m ()) -> m [(Constraint, a)]
-        removeDead graphOpts clist totalList tp discharge = do
+        removeDead graphOpts clistWithInter totalList tp discharge = do
             let
                 tfVars = typeFreeVars tp
+                allVars = List.nub $ tfVars ++ concatMap constrFreeVars totalList
                 --First we remove constraints of the form
                 -- X << pat 
                 -- or the form (pat << X)
                 --where X occurs in no other constraints
                 --Since these are always trivially solveable 
                 occurrences = map constrFreeVars totalList
-            logIO $ "All occurrences: " ++ show (zip3 totalList (map (\(Fix c) -> toList c) totalList) occurrences)
-            logIO $ "Type free vars: " ++ show tfVars ++ "  for  " ++ show tp
+            -- logIO $ "All occurrences: " ++ show (zip3 totalList (map (\(Fix c) -> toList c) totalList) occurrences)
+            -- logIO $ "Type free vars: " ++ show tfVars ++ "  for  " ++ show tp
             ocList <- forM (tfVars ++ concat occurrences) (\ pt -> (fmap fst ) $ liftIO $ UF.get pt)
-            logIO $ "Bare occurreces: " ++ show occurrences
-            logIO $ "OCList " ++ show ocList
+            -- logIO $ "Bare occurreces: " ++ show occurrences
+            -- logIO $ "OCList " ++ show ocList
             let
+
+                
+
+                varIsLHS v c = case c of
+                    CSubset (SetVar v') _ | v == v' -> True
+                    _ -> False
+
+                maybeLHSforRHSVar v c = case c of
+                    CSubset other (SetVar v')  | v == v' -> Just other
+                    _ -> Nothing
+
+                varIsIntermediate vinit = do
+                    v <- liftIO $ UF.repr vinit
+                    r1 <- fst <$> (liftIO $ UF.get v)
+                    let numOccs = length $ filter (== r1) ocList
+                        numLHS = length $ filter  (varIsLHS v) totalList
+                        lhsForRHSOccs =  Maybe.catMaybes $ map (maybeLHSforRHSVar v) totalList
+                    case (numOccs == numLHS + length lhsForRHSOccs, v `elem` tfVars) of
+                        (True, False) -> return $ Just (v, lhsForRHSOccs)  
+                        _ -> return Nothing
 
                 varIsDead v =  do
                     r1 <- fst <$> (liftIO $ UF.get v)
                     return (length (filter (== r1) ocList) <2)
+
 
                 constrIsDead (CSubset (SetVar v) (SetVar v2)) = (liftM2 (||)) (varIsDead v) (varIsDead v2)
                 constrIsDead (CSubset (SetVar v) l) = varIsDead v
@@ -696,6 +742,17 @@ optimizeConstr graphOpts topTipe (CAnd l) safety = do
                 constrIsDead (CImplies c1 c) = constrIsDead c --Implication is dead if conclusion is trivial
                 constrIsDead (CImplies _ CTrue) = return True
                 constrIsDead c = return False
+            varInterMap <- (fmap (Map.fromList . Maybe.catMaybes)) $ forM allVars varIsIntermediate
+            logIO $ "Got varInterMap " ++ show varInterMap
+            --If a variable only serves as an intermediate (i.e. A < B, A' < B, B < C)
+            --then eliminate it (i.e. into A < C, A' < C)
+            let clist = (flip concatMap) clistWithInter $ \(c, info) -> 
+                    case c of
+                        CSubset (SetVar v) rhs -> case Map.lookup v varInterMap of
+                            Nothing -> [(c, info)]
+                            Just lhses -> map (\lhs -> (CSubset lhs rhs, info)) lhses
+                        CSubset _ (SetVar v) | Map.member v varInterMap -> []
+                        _ -> [(c,info)] 
             boolList <- forM clist (\x -> (fmap not) $ constrIsDead (fst x))
             let boolPairList = zip boolList clist
             let (easyFiltered, easyDeleted) = List.partition fst boolPairList
@@ -763,7 +820,7 @@ optimizeConstr graphOpts topTipe (CAnd l) safety = do
         -- helper ((CImplies (CNot (CSubset  (Intersect Top lhs) Bottom)) rhs,info) : l) accum  = helper (((CImplies (CNot (CSubset lhs Bottom)) rhs),info) : l) accum
         -- helper ((CImplies (CNot (CSubset  (Intersect lhs Top) Bottom)) rhs,info) : l) accum  = helper (((CImplies (CNot (CSubset lhs Bottom)) rhs),info) : l) accum
         -- helper ((CImplies (CNot (CSubset  lhs Bottom)) rhs,info) : l) accum | isSingleton lhs = helper ((rhs,info) : l) accum
-        helper ((CImplies ((CSubset  lhs Bottom)) rhs,info) : l) accum | isSingleton lhs = helper l accum
+        -- helper ((CImplies ((CSubset  lhs Bottom)) rhs,info) : l) accum | isSingleton lhs = helper l accum
         helper ((CEqual a (Intersect b a'), info): rest) accum | a == a' = helper ((CSubset a b,info):rest) accum
         helper ((CSubset a (Intersect b a'), info): rest) accum | a == a' = helper ((CSubset a b,info):rest) accum
         helper (h : rest) accum = helper rest (h : accum)
