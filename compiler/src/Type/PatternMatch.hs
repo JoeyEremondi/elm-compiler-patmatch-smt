@@ -720,21 +720,19 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
             let
 
                 
-                varIsLHS v c = do
-                    logIO $ " Comparing LHS " ++ v ++ " and " ++ show c
+                varIsLHS v c = 
                     case c of
                         CSubset (SetVar v') _ -> do
                             r1 <- getVarName v'
-                            logIO $ " Comparing LHS " ++ v ++ " and " ++ r1
+                            -- logIO $ " Comparing LHS " ++ v ++ " and " ++ r1
                             return $ r1 == v 
                         _ -> return False
 
-                maybeLHSforRHSVar v c = do
-                    logIO $ " Comparing RHS " ++ v ++ " and " ++ show c
+                maybeLHSforRHSVar v c = 
                     case c of
                         CSubset other (SetVar v') -> do
                             r1 <- getVarName v'
-                            logIO $ " Comparing RHS " ++ v ++ " and " ++ r1
+                            -- logIO $ " Comparing RHS " ++ v ++ " and " ++ r1
                             case (r1 == v ) of 
                                 True -> return $ Just other
                                 False -> return Nothing 
@@ -744,7 +742,7 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
                     let numOccs = length $ filter (== v) ocList
                     numLHS <- length <$> filterM  (varIsLHS v) totalList
                     lhsForRHSOccs <-  Maybe.catMaybes <$> mapM (maybeLHSforRHSVar v) totalList
-                    logIO $ "Var " ++ v ++ " lhs  " ++ show numLHS ++ "  rhs  " ++ show lhsForRHSOccs
+                    -- logIO $ "Var " ++ v ++ " lhs  " ++ show numLHS ++ "  rhs  " ++ show lhsForRHSOccs
                     case (numOccs == numLHS + length lhsForRHSOccs, v `elem` tfReps) of
                         (True, False) -> return $ Just (v, lhsForRHSOccs)  
                         _ -> return Nothing
@@ -764,7 +762,7 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
                 constrIsDead (CImplies _ CTrue) = return True
                 constrIsDead c = return False
             varInterMap <- (fmap (Map.fromList . Maybe.catMaybes)) $ forM allVars varIsIntermediate
-            logIO $ "Got varInterMap " ++ show varInterMap
+            -- logIO $ "Got varInterMap " ++ show varInterMap
             --If a variable only serves as an intermediate (i.e. A < B, A' < B, B < C)
             --then eliminate it (i.e. into A < C, A' < C)
             clist <- (fmap concat ) $ forM clistWithInter $ \(c, info) -> 
@@ -1072,7 +1070,7 @@ runCMIO ioref c = do
 tellSafety branches pathConstr x r context pats =
   let 
     patErrors = PatError.checkCases r branches []
-  in trace ("\nPattern errors for branches " ++ show branches ++ " num " ++ show (length patErrors) ) $ unless (  null $ patErrors) $ 
+  in unless (  null $ patErrors) $ 
     tell $ Safety [(pathConstr ==> x, (r, context, pats))]
 
 --Given a type and an  effect-variable for each expression,
@@ -1172,6 +1170,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
                 case theUnionType of
                     Nothing -> CTrue
                     Just u -> ((inputPatterns `intersect` unionToLitPattern maxDepth unionMap u discrType) << (safetyRHS ))
+        logIO $ "Case branch telling safety " ++ show theSafetyConstr
         tellSafety branches pathConstr theSafetyConstr region PatError.BadCase (map (\(a,_,_)->a) litBranches)
         branchConstrs <-
             forM litBranches (
@@ -1184,6 +1183,9 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
                     --If this branch is reachable, then we emit a constraint saying
                     --That the overall result of the case expression contains the result of this branch
                     --TODO make paper match this
+                    logIO $ "New env constraint: " ++ show newEnvConstr
+                    logIO $ "rshConstrs: " ++ show rhsConstrs
+                    logIO $ "CanBeInBranchResult: " ++ show (canBeInBranch ==> ( rhsTy << resultType)) 
                     return $
                         newEnvConstr /\ rhsConstrs /\ (canBeInBranch ==> ( rhsTy << resultType)))
         return (inputConstrs  /\ CAnd branchConstrs)
@@ -1598,6 +1600,7 @@ envAfterMatchHelper tyMap  (A.At region pat)  = do
         --For lists, we get split into head and tail and handle recursively
         (Can.PList (p1 : pList)) -> ctorProjectionEnvs ourType  ctorCons [p1, A.At region (Can.PList pList)]
         (Can.PCons p1 p2) -> ctorProjectionEnvs ourType ctorCons [p1, p2]
+        (Can.PList []) -> ctorProjectionEnvs ourType ctorNull []
         _ -> do
             doDeepUnifyTop ourType
             return $ (Map.empty, ourType, Top)
