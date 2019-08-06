@@ -651,19 +651,27 @@ dischargeSafety comp = do
                     throwError $ PatError.Incomplete region context (map PatError.simplify pats )
 
 getVarName :: forall m . (ConstrainM m) => Variable -> m String 
-getVarName v = fst <$> (liftIO $ UF.get v)              
+getVarName v = fst <$> (liftIO $ UF.get v)          
+
+constrToList :: Constraint -> [Constraint]
+constrToList (CAnd l) = concatMap constrToList l
+constrToList c = [c]
+
+safetyToList :: Safety -> [(Constraint, _)]
+safetyToList s = 
+    concatMap (\(c,info) -> map (\c' -> (c', info)) (constrToList c) ) $ unSafety s
 
 optimizeConstr :: forall m . (ConstrainM m) => Bool -> TypeEffect  -> Constraint -> Safety -> m (TypeEffect, Constraint, Safety)
-optimizeConstr _ tipe (CAnd []) safety = return (tipe, CTrue, safety)
-optimizeConstr graphOpts topTipe (CAnd l) safety = do
-    (pairsInter, safetyInter, tInter) <-  doOpts graphOpts topTipe (map (,()) l) (unSafety safety) (\x -> logIO $ "AUTOMATICALLY DISCHARGING CONSTR " ++ show x)
-    (optimizedSafetyList, optimizedPairs, tRet) <- doOpts graphOpts tInter safetyInter pairsInter  dischargeSafety
-    let optimizedSafety = Safety optimizedSafetyList
-    let optimized = map fst optimizedPairs
-    case (optimized == l && optimizedSafety ==  safety) of
-        True -> return $ (tRet, CAnd l, optimizedSafety)
-        False -> optimizeConstr graphOpts tRet (CAnd optimized) optimizedSafety
+optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts topTipe (constrToList ordConstrs) (safetyToList safety)
     where
+        optimizeConstr_ graphOpts topTipe constrList safetyList = do
+            (pairsInter, safetyInter, tInter) <-  doOpts graphOpts topTipe (map (,()) constrList) safetyList (\x -> logIO $ "AUTOMATICALLY DISCHARGING CONSTR " ++ show x)
+            (optimizedSafetyList, optimizedPairs, tRet) <- doOpts graphOpts tInter safetyInter pairsInter  dischargeSafety
+            let optimizedSafety = Safety optimizedSafetyList
+            let optimized = map fst optimizedPairs
+            case (optimized == constrList && optimizedSafety ==  safety) of
+                True -> return $ (tRet, CAnd constrList, optimizedSafety)
+                False -> optimizeConstr graphOpts tRet (CAnd optimized) optimizedSafety
         subConstrPair (c, info) = do
             csub <- subConstrVars c
             return (simplifyConstraint csub, info)
@@ -704,32 +712,39 @@ optimizeConstr graphOpts topTipe (CAnd l) safety = do
                 occurrences = map constrFreeVars totalList
             -- logIO $ "All occurrences: " ++ show (zip3 totalList (map (\(Fix c) -> toList c) totalList) occurrences)
             -- logIO $ "Type free vars: " ++ show tfVars ++ "  for  " ++ show tp
-            allVars <- List.nub <$> (forM (tfVars ++ concatMap constrFreeVars totalList) (\ x -> getVarName x))
             tfReps <- forM tfVars (\x -> getVarName x)
             ocList <- forM (tfVars ++ concat occurrences) (\ pt -> (fmap fst ) $ liftIO $ UF.get pt)
+            let allVars = List.nub ocList
             -- logIO $ "Bare occurreces: " ++ show occurrences
             -- logIO $ "OCList " ++ show ocList
             let
 
                 
-                varIsLHS v c = case c of
-                    CSubset (SetVar v') _ -> do
-                        r1 <- getVarName v'
-                        return $ r1 == v 
-                    _ -> return False
+                varIsLHS v c = do
+                    logIO $ " Comparing LHS " ++ v ++ " and " ++ show c
+                    case c of
+                        CSubset (SetVar v') _ -> do
+                            r1 <- getVarName v'
+                            logIO $ " Comparing LHS " ++ v ++ " and " ++ r1
+                            return $ r1 == v 
+                        _ -> return False
 
-                maybeLHSforRHSVar v c = case c of
-                    CSubset other (SetVar v') -> do
-                        r1 <- getVarName v'
-                        case (r1 == v ) of 
-                            True -> return $ Just other
-                            False -> return Nothing 
-                    _ -> return $ Nothing
+                maybeLHSforRHSVar v c = do
+                    logIO $ " Comparing RHS " ++ v ++ " and " ++ show c
+                    case c of
+                        CSubset other (SetVar v') -> do
+                            r1 <- getVarName v'
+                            logIO $ " Comparing RHS " ++ v ++ " and " ++ r1
+                            case (r1 == v ) of 
+                                True -> return $ Just other
+                                False -> return Nothing 
+                        _ -> return $ Nothing
 
                 varIsIntermediate v = do
                     let numOccs = length $ filter (== v) ocList
                     numLHS <- length <$> filterM  (varIsLHS v) totalList
                     lhsForRHSOccs <-  Maybe.catMaybes <$> mapM (maybeLHSforRHSVar v) totalList
+                    logIO $ "Var " ++ v ++ " lhs  " ++ show numLHS ++ "  rhs  " ++ show lhsForRHSOccs
                     case (numOccs == numLHS + length lhsForRHSOccs, v `elem` tfReps) of
                         (True, False) -> return $ Just (v, lhsForRHSOccs)  
                         _ -> return Nothing
@@ -836,7 +851,6 @@ optimizeConstr graphOpts topTipe (CAnd l) safety = do
         helper ((CEqual a (Intersect b a'), info): rest) accum | a == a' = helper ((CSubset a b,info):rest) accum
         helper ((CSubset a (Intersect b a'), info): rest) accum | a == a' = helper ((CSubset a b,info):rest) accum
         helper (h : rest) accum = helper rest (h : accum)
-optimizeConstr graphOpts tipe c s = return (tipe, c, s)
 
 
 toSC :: (ConstrainM m) => Constraint -> m SC.CExpr
