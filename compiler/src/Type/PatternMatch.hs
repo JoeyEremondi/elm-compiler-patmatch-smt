@@ -526,6 +526,8 @@ simplifyLit :: LitPattern -> LitPattern
 
 simplifyLit (Ctor s l) = 
     case map simplifyLit l of
+        [a `Union` b] -> simplifyLit $ (Ctor s [a]) `Union` (Ctor s [b])
+        [a `Intersect` b] -> simplifyLit $ (Ctor s [a]) `Intersect` (Ctor s [b])
         sl | Bottom `elem` sl -> Bottom
         sl -> Ctor s sl
 simplifyLit (Union x y) = 
@@ -661,6 +663,13 @@ safetyToList :: Safety -> [(Constraint, _)]
 safetyToList s = 
     concatMap (\(c,info) -> map (\c' -> (c', info)) (constrToList c) ) $ unSafety s
 
+data InterLHS = 
+    SimpleLHS LitPattern
+    | ImplicationLHS Constraint LitPattern
+
+makeLHSConstraint (SimpleLHS lhs) rhs = CSubset lhs rhs
+makeLHSConstraint (ImplicationLHS cond lhs) rhs = CImplies cond (CSubset lhs rhs)
+
 optimizeConstr :: forall m . (ConstrainM m) => Bool -> TypeEffect  -> Constraint -> Safety -> m (TypeEffect, Constraint, Safety)
 optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts topTipe (constrToList ordConstrs) (safetyToList safety)
     where
@@ -726,6 +735,10 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
                             r1 <- getVarName v'
                             -- logIO $ " Comparing LHS " ++ v ++ " and " ++ r1
                             return $ r1 == v 
+                        CImplies _ (CSubset (SetVar v') _) -> do
+                            r1 <- getVarName v'
+                            -- logIO $ " Comparing LHS " ++ v ++ " and " ++ r1
+                            return $ r1 == v
                         _ -> return False
 
                 maybeLHSforRHSVar v c = 
@@ -734,7 +747,13 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
                             r1 <- getVarName v'
                             -- logIO $ " Comparing RHS " ++ v ++ " and " ++ r1
                             case (r1 == v ) of 
-                                True -> return $ Just other
+                                True -> return $ Just $ SimpleLHS other
+                                False -> return Nothing 
+                        CImplies cond (CSubset other (SetVar v')) -> do
+                            r1 <- getVarName v'
+                            -- logIO $ " Comparing RHS " ++ v ++ " and " ++ r1
+                            case (r1 == v ) of 
+                                True -> return $ Just $ ImplicationLHS cond other
                                 False -> return Nothing 
                         _ -> return $ Nothing
 
@@ -771,8 +790,18 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
                             v <- getVarName var
                             case Map.lookup v varInterMap of
                                 Nothing -> return [(c, info)]
-                                Just lhses -> return $ map (\lhs -> (CSubset lhs rhs, info)) lhses
+                                Just lhses -> return $ map (\lhs -> (makeLHSConstraint lhs rhs, info) ) lhses
+                        CImplies cond (CSubset (SetVar var) rhs) -> do 
+                            v <- getVarName var
+                            case Map.lookup v varInterMap of
+                                Nothing -> return [(c, info)]
+                                Just lhses -> return $ map (\lhs -> (CImplies cond $  makeLHSConstraint lhs rhs , info)) lhses
                         CSubset _ (SetVar var) -> do
+                            v <- getVarName var
+                            return $ case Map.member v varInterMap of
+                                True -> []
+                                False -> [(c,info)]
+                        CImplies _ (CSubset _ (SetVar var)) -> do
                             v <- getVarName var
                             return $ case Map.member v varInterMap of
                                 True -> []
@@ -1594,9 +1623,6 @@ envAfterMatchHelper tyMap  (A.At region pat)  = do
             ctorProjectionEnvs ourType  (N.toString ctorName) $ map Can._arg ctorArgs
         (Can.PTuple p1 p2 (Just p3)) -> ctorProjectionEnvs ourType ctorTriple [p1, p2, p3]
         (Can.PTuple p1 p2 Nothing) -> ctorProjectionEnvs ourType ctorPair [p1, p2]
-        (Can.PList []) -> do
-            unifyEffects (toLit ourType) litNull
-            return $ (Map.empty, ourType, Top) --Nothing to add to env for Null
         --For lists, we get split into head and tail and handle recursively
         (Can.PList (p1 : pList)) -> ctorProjectionEnvs ourType  ctorCons [p1, A.At region (Can.PList pList)]
         (Can.PCons p1 p2) -> ctorProjectionEnvs ourType ctorCons [p1, p2]
