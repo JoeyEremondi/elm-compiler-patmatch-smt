@@ -11,6 +11,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE StandaloneDeriving #-}
+-- {-# LANGUAGE BangPatterns #-}
 
 module Type.PatternMatch (patternMatchAnalysis) where
 
@@ -423,7 +424,7 @@ instantiate (Forall boundVars tipe constr safety) = do
             tell safety
             return (tipe, constr)
         _ -> do
-            logIO $ "Instantiating with SubList" ++ (show subList)
+            -- logIO $ "Instantiating with SubList" ++ (show subList)
             let typeFVs = typeFreeVars tipe
             let constrFVs = constrFreeVars constr
             let safetyFVs = safetyFreeVars safety
@@ -433,7 +434,7 @@ instantiate (Forall boundVars tipe constr safety) = do
                 False -> return []
                 True -> return [(oldVar, freshVar)]
             let subPairs = List.nub (subList ++  concatMap concat subPairList  )
-            logIO $ "Got total subPair list " ++ show subPairs
+            -- logIO $ "Got total subPair list " ++ show subPairs
             let substFun x =
                     case lookup x subPairs of
                         Nothing -> x
@@ -444,17 +445,17 @@ instantiate (Forall boundVars tipe constr safety) = do
             tell subbedSafety
             let subbedType = typeSubsts substFun tipe
                 subbedConstr = constrSubsts substFun constr
-            logIO $ "Subbed type for instantiation " ++ show subbedType
-            logIO $ "Subbed constr for instantiation " ++ show subbedConstr
+            -- logIO $ "Subbed type for instantiation " ++ show subbedType
+            -- logIO $ "Subbed constr for instantiation " ++ show subbedConstr
             return $ (subbedType, subbedConstr )
 
 
 generalize :: (ConstrainM m) => Gamma -> TypeEffect -> Constraint -> Safety -> m EffectScheme
 generalize _Gamma tipe constr safety = do
     let allFreeVars_dupes = (typeFreeVars tipe) ++ constrFreeVars constr ++ safetyFreeVars safety
-    logIO $ "GENERALIZE: free vars with duples" ++ show allFreeVars_dupes
+    -- logIO $ "GENERALIZE: free vars with duples" ++ show allFreeVars_dupes
     allFreeVars <- liftIO $ List.nub <$> mapM UF.repr allFreeVars_dupes
-    logIO $ "GENERALIZE: free vars " ++ show allFreeVars
+    -- logIO $ "GENERALIZE: free vars " ++ show allFreeVars
     let schemeVars (Forall bnd (t :@ lit) sconstr ssafety) = liftIO $ do
             let vEff = litFreeVars lit
             let vConstr = constrFreeVars sconstr
@@ -463,7 +464,7 @@ generalize _Gamma tipe constr safety = do
             boundReprs <- mapM UF.repr bnd
             return $ reprs List.\\ boundReprs
     gammaFreeVars <- (List.nub . concat) <$> mapM schemeVars (Map.elems _Gamma)
-    logIO $ "GENERALIZE: gamma free vars " ++ show gammaFreeVars
+    -- logIO $ "GENERALIZE: gamma free vars " ++ show gammaFreeVars
     return $  Forall (allFreeVars List.\\ gammaFreeVars) tipe constr safety
 
 
@@ -497,15 +498,17 @@ simplifyConstraint (CAnd l) =
         [] -> CTrue
         [c] -> c
         _ -> CAnd cl 
-simplifyConstraint (CImplies x y ) = case (simplifyConstraint x) of
-    CTrue -> simplifyConstraint y
-    CFalse -> CTrue
-    sx -> CImplies (sx) (simplifyConstraint y)
+simplifyConstraint (CImplies x y ) = case (simplifyConstraint x, simplifyConstraint y) of
+    (CTrue, sy) -> simplifyConstraint y
+    (CFalse, _) -> CTrue
+    (sx, CImplies sx2 sy) -> simplifyConstraint (CImplies (sx /\ sx2) sy)
+    (sx, sy) -> CImplies sx sy
 simplifyConstraint (CNonEmpty x) = case simplifyLit x of
     Top -> CTrue
     Bottom -> CFalse
     Intersect a b | isSingleton a -> simplifyConstraint $ CSubset a b
     Intersect b a | isSingleton a -> simplifyConstraint $ CSubset a b
+    Ctor _ args -> simplifyConstraint $ CAnd $ map CNonEmpty args
 
     xs -> if forSureNotEmpty xs then CTrue else CNonEmpty xs
 simplifyConstraint (CSubset x y) = case (simplifyLit x, simplifyLit y) of
@@ -618,7 +621,7 @@ removeUnreachableConstraints initial candidateConstrs allConstrs discharge = do
         case (varStrings2 `List.intersect` (reachableFromVar1 ++ varStrings1)) of
             [] -> return []
             _ -> do
-                logIO $ "Found connection between constraints " ++ show c1 ++ "   and    " ++ show c2
+                -- logIO $ "Found connection between constraints " ++ show c1 ++ "   and    " ++ show c2
                 return [(c1,c2)]
 
     cEdgePairs <-   mapM  cEdgesFor [(c1,c2) | c1 <- unreachable, c2 <- unreachable]
@@ -722,8 +725,9 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
             -- logIO $ "All occurrences: " ++ show (zip3 totalList (map (\(Fix c) -> toList c) totalList) occurrences)
             -- logIO $ "Type free vars: " ++ show tfVars ++ "  for  " ++ show tp
             tfReps <- forM tfVars (\x -> getVarName x)
-            ocList <- forM (tfVars ++ concat occurrences) (\ pt -> (fmap fst ) $ liftIO $ UF.get pt)
-            let allVars = List.nub ocList
+            theOccList <- forM (tfVars ++ concat occurrences) (\ pt -> (fmap fst ) $ liftIO $ UF.get pt)
+            let allVars = List.nub theOccList
+                occurenceCountMap = Map.fromList $ map (\l -> (head l, length l)) $ List.group $ List.sort theOccList
             -- logIO $ "Bare occurreces: " ++ show occurrences
             -- logIO $ "OCList " ++ show ocList
             let
@@ -758,7 +762,7 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
                         _ -> return $ Nothing
 
                 varIsIntermediate v = do
-                    let numOccs = length $ filter (== v) ocList
+                    let numOccs = occurenceCountMap Map.! v
                     numLHS <- length <$> filterM  (varIsLHS v) totalList
                     lhsForRHSOccs <-  Maybe.catMaybes <$> mapM (maybeLHSforRHSVar v) totalList
                     -- logIO $ "Var " ++ v ++ " lhs  " ++ show numLHS ++ "  rhs  " ++ show lhsForRHSOccs
@@ -768,13 +772,17 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
 
                 varIsDead v =  do
                     r1 <- fst <$> (liftIO $ UF.get v)
-                    return (length (filter (== r1) ocList) <2)
+                    return $ occurenceCountMap Map.! r1 == 0
 
 
-                constrIsDead (CSubset (SetVar v) (SetVar v2)) = (liftM2 (||)) (varIsDead v) (varIsDead v2)
+                constrIsDead (CSubset (SetVar v) (SetVar v2)) = do
+                    b1 <- (varIsDead v) 
+                    if b1 then return True else (varIsDead v2)
                 constrIsDead (CSubset (SetVar v) l) = varIsDead v
                 constrIsDead (CSubset l (SetVar v)) =  varIsDead v
-                constrIsDead (CEqual (SetVar v) (SetVar v2)) = (liftM2 (||)) (varIsDead v) (varIsDead v2)
+                constrIsDead (CEqual (SetVar v) (SetVar v2)) = do
+                    b1 <- (varIsDead v) 
+                    if b1 then return True else (varIsDead v2)
                 constrIsDead (CEqual (SetVar v) l) = varIsDead v
                 constrIsDead (CEqual l (SetVar v)) = varIsDead v
                 constrIsDead (CImplies c1 c) = constrIsDead c --Implication is dead if conclusion is trivial
