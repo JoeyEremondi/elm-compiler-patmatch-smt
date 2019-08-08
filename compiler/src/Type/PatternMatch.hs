@@ -763,9 +763,9 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
 
                 varIsIntermediate v = 
                     let
-                        numOccs = occurenceCountMap Map.! v
-                        numLHS = lhsMap Map.! v
-                        lhsForRHSOccs = rhsMap Map.! v
+                        numOccs = Maybe.fromMaybe 0 $ Map.lookup v occurenceCountMap
+                        numLHS = Maybe.fromMaybe 0 $ Map.lookup v lhsMap
+                        lhsForRHSOccs = Maybe.fromMaybe [] $ Map.lookup v rhsMap
                     -- logIO $ "Var " ++ v ++ " lhs  " ++ show numLHS ++ "  rhs  " ++ show lhsForRHSOccs
                     in case (numOccs == numLHS + length lhsForRHSOccs, v `elem` tfReps) of
                         (True, False) -> Just (v, lhsForRHSOccs)  
@@ -773,7 +773,7 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
 
                 varIsDead v =  do
                     r1 <- fst <$> (liftIO $ UF.get v)
-                    return $ occurenceCountMap Map.! r1 == 0
+                    return $ Map.lookup r1 occurenceCountMap  == Just 0
 
 
                 constrIsDead (CSubset (SetVar v) (SetVar v2)) = do
