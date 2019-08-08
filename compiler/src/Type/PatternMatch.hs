@@ -27,7 +27,7 @@ import Data.Word (Word32)
 import Data.Char (isAlphaNum)
 
 import qualified Nitpick.PatternMatches as PatError
-
+ 
 import Control.Monad.Fail
 import Control.Monad.Except (ExceptT, MonadError, throwError, runExceptT)
 
@@ -51,7 +51,8 @@ import Data.IORef
 import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Type.Type as Type
-import Control.Monad.Writer
+
+import Control.Monad.Writer.Strict 
 
 import Data.Semigroup
 import Data.Monoid
@@ -732,43 +733,43 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
             -- logIO $ "OCList " ++ show ocList
             let
 
+
+                cLHS (CSubset (SetVar v) _) = Just v
+                cLHS _ = Nothing
                 
-                varIsLHS v c = 
-                    case c of
-                        CSubset (SetVar v') _ -> do
-                            r1 <- getVarName v'
-                            -- logIO $ " Comparing LHS " ++ v ++ " and " ++ r1
-                            return $ r1 == v 
-                        CImplies _ (CSubset (SetVar v') _) -> do
-                            r1 <- getVarName v'
-                            -- logIO $ " Comparing LHS " ++ v ++ " and " ++ r1
-                            return $ r1 == v
-                        _ -> return False
 
-                maybeLHSforRHSVar v c = 
-                    case c of
-                        CSubset other (SetVar v') -> do
-                            r1 <- getVarName v'
-                            -- logIO $ " Comparing RHS " ++ v ++ " and " ++ r1
-                            case (r1 == v ) of 
-                                True -> return $ Just $ SimpleLHS other
-                                False -> return Nothing 
-                        CImplies cond (CSubset other (SetVar v')) -> do
-                            r1 <- getVarName v'
-                            -- logIO $ " Comparing RHS " ++ v ++ " and " ++ r1
-                            case (r1 == v ) of 
-                                True -> return $ Just $ ImplicationLHS cond other
-                                False -> return Nothing 
-                        _ -> return $ Nothing
+                cRHS (CSubset other (SetVar v)) = Just (v, SimpleLHS other)
+                cRHS _ = Nothing
 
-                varIsIntermediate v = do
-                    let numOccs = occurenceCountMap Map.! v
-                    numLHS <- length <$> filterM  (varIsLHS v) totalList
-                    lhsForRHSOccs <-  Maybe.catMaybes <$> mapM (maybeLHSforRHSVar v) totalList
+            filteredLHSList <- (fmap Maybe.catMaybes ) $ forM totalList $ \c -> 
+                    case cLHS c of
+                        Nothing -> return Nothing
+                        Just v -> Just <$> getVarName v
+            let lhsMap = Map.fromList $ map (\l -> (head l, length l)) $ List.group $ List.sort filteredLHSList
+                
+
+            filteredRHSList <- (fmap Maybe.catMaybes ) $ forM totalList $ \c -> 
+                case cRHS c of
+                    Nothing -> return Nothing
+                    Just (v, rhs) -> do
+                        repr <-  getVarName v
+                        return $ Just (repr, rhs)
+            let rhsGroups = List.groupBy (\ x y -> fst x == fst y) $ List.sortOn fst filteredRHSList
+            let 
+                rhsMap = Map.fromList $ (flip map) rhsGroups $ \l -> 
+                    let (v:_, lhses) = unzip l
+                    in (v, lhses)
+
+
+                varIsIntermediate v = 
+                    let
+                        numOccs = occurenceCountMap Map.! v
+                        numLHS = lhsMap Map.! v
+                        lhsForRHSOccs = rhsMap Map.! v
                     -- logIO $ "Var " ++ v ++ " lhs  " ++ show numLHS ++ "  rhs  " ++ show lhsForRHSOccs
-                    case (numOccs == numLHS + length lhsForRHSOccs, v `elem` tfReps) of
-                        (True, False) -> return $ Just (v, lhsForRHSOccs)  
-                        _ -> return Nothing
+                    in case (numOccs == numLHS + length lhsForRHSOccs, v `elem` tfReps) of
+                        (True, False) -> Just (v, lhsForRHSOccs)  
+                        _ -> Nothing
 
                 varIsDead v =  do
                     r1 <- fst <$> (liftIO $ UF.get v)
@@ -788,7 +789,7 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
                 constrIsDead (CImplies c1 c) = constrIsDead c --Implication is dead if conclusion is trivial
                 constrIsDead (CImplies _ CTrue) = return True
                 constrIsDead c = return False
-            varInterMap <- (fmap (Map.fromList . Maybe.catMaybes)) $ forM allVars varIsIntermediate
+            let varInterMap =  Map.fromList $ Maybe.catMaybes  $ map varIsIntermediate allVars
             -- logIO $ "Got varInterMap " ++ show varInterMap
             --If a variable only serves as an intermediate (i.e. A < B, A' < B, B < C)
             --then eliminate it (i.e. into A < C, A' < C)
@@ -799,21 +800,21 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
                             case Map.lookup v varInterMap of
                                 Nothing -> return [(c, info)]
                                 Just lhses -> return $ map (\lhs -> (makeLHSConstraint lhs rhs, info) ) lhses
-                        CImplies cond (CSubset (SetVar var) rhs) -> do 
-                            v <- getVarName var
-                            case Map.lookup v varInterMap of
-                                Nothing -> return [(c, info)]
-                                Just lhses -> return $ map (\lhs -> (CImplies cond $  makeLHSConstraint lhs rhs , info)) lhses
+                        -- CImplies cond (CSubset (SetVar var) rhs) -> do 
+                        --     v <- getVarName var
+                        --     case Map.lookup v varInterMap of
+                        --         Nothing -> return [(c, info)]
+                        --         Just lhses -> return $ map (\lhs -> (CImplies cond $  makeLHSConstraint lhs rhs , info)) lhses
                         CSubset _ (SetVar var) -> do
                             v <- getVarName var
                             return $ case Map.member v varInterMap of
                                 True -> []
                                 False -> [(c,info)]
-                        CImplies _ (CSubset _ (SetVar var)) -> do
-                            v <- getVarName var
-                            return $ case Map.member v varInterMap of
-                                True -> []
-                                False -> [(c,info)]
+                        -- CImplies _ (CSubset _ (SetVar var)) -> do
+                        --     v <- getVarName var
+                        --     return $ case Map.member v varInterMap of
+                        --         True -> []
+                        --         False -> [(c,info)]
                         _ -> return [(c,info)] 
             boolList <- forM clist (\x -> (fmap not) $ constrIsDead (fst x))
             let boolPairList = zip boolList clist

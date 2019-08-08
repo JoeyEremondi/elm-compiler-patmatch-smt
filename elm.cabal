@@ -266,4 +266,5 @@ Executable elm
         vector,
         zip-archive,
         SetConstraints,
-        microtimer
+        microtimer,
+        writer-cps-transformers
