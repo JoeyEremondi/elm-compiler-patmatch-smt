@@ -569,8 +569,8 @@ pairsToGraphMap vertices edges =
         edgeMap = Map.fromListWith Set.union startPairs 
     in  map (\(a,b) -> (a,a, Set.toList b)) $ Map.toList edgeMap
 
-removeUnreachableConstraints :: (ConstrainM m) => [Variable] -> [(Constraint, a)] -> [Constraint] -> ([(Constraint,a)] -> m () )-> m [(Constraint, a)]
-removeUnreachableConstraints initial candidateConstrs allConstrs discharge = do
+removeUnreachableConstraints :: (ConstrainM m) => [Variable] -> [Constraint] -> [Constraint] ->  m [(Constraint)]
+removeUnreachableConstraints initial candidateConstrs allConstrs = do
     --TODO okay to assume that all vars live, even if replaced by expr?
     --Variable names for all types reachable in our "initial variables"
     --i.e. those referenced by the TypeEffect we're dealing with
@@ -606,55 +606,19 @@ removeUnreachableConstraints initial candidateConstrs allConstrs discharge = do
         let vars = constrFreeVars c
         varStrings <- fmap (map fst) $ liftIO $ forM vars UF.get
         return $ not $ null $ List.intersect  varStrings reachableVertices
-    reachable <- filterM (constraintReachable . fst ) candidateConstrs
-    unreachablePairs <-  filterM ( \ x -> fmap not $ constraintReachable $ fst x) candidateConstrs
-    let unreachable = map fst unreachablePairs 
-    let unreachableMap = Map.fromList unreachablePairs 
-
-    --Now, we make a graph of connections between unreachable constraints
-    --Two constraints are connected if two of their variables are connected
-    let cEdgesFor (c1, c2) = do
-        let vars1 = constrFreeVars c1
-            vars2 = constrFreeVars c2
-        varStrings1 <- fmap (map fst) $ liftIO $ forM vars1 UF.get
-        varStrings2 <- fmap (map fst) $ liftIO $ forM vars2 UF.get
-        let reachableFromVar1 = concatMap (\v -> Maybe.fromMaybe [] $ Map.lookup v reachabilityMap) varStrings1
-        case (varStrings2 `List.intersect` (reachableFromVar1 ++ varStrings1)) of
-            [] -> return []
-            _ -> do
-                -- logIO $ "Found connection between constraints " ++ show c1 ++ "   and    " ++ show c2
-                return [(c1,c2)]
-
-    cEdgePairs <-   mapM  cEdgesFor [(c1,c2) | c1 <- unreachable, c2 <- unreachable]
-    -- liftIO $ putStrLn $ "Got edge list " ++ show (map ((\(a,b,c) -> (fst a, b, c)) . cedgeListFor) unreachable)
-    let ccomps =
-            case cEdgePairs of
-                [] -> map (\x -> [x]) unreachable
-                _ -> let
-                        (cgraph, cnodeFromVertex, _cvertexFromKey) = Graph.graphFromEdges $ pairsToGraphMap unreachable $ concat cEdgePairs
-                    -- liftIO $ putStrLn $ "Connected components "  
-                    in map  (map $ (\(a,_,_) -> a) . cnodeFromVertex ) $ map toList $  Graph.components cgraph
-    forM_ ccomps $ \comp -> 
-        -- liftIO $ putStrLn $ "Discharging connected component " ++ show (map fst comp)
-        discharge (map (\k -> (k, unreachableMap Map.! k)) comp)
-    -- $ \comp -> do
-    --     -- logIO $ "Trying to discharge unreachable constraints " ++ show $ comp
-    --     unreachSoln <- solveConstraint (CAnd $ map fst comp)
-    --     case unreachSoln of
-    --         Right _ -> return ()
-    --         Left _ -> error "Could not discharge unreachable constraint"
+    reachable <- filterM constraintReachable  candidateConstrs
     return reachable
 
 
-dischargeSafety comp = do
-        logIO $ "DISCHARGING: " ++ (show $ map fst comp)
-        unreachSoln <- solveConstraint (CAnd  ((CNonEmpty Top ) : map fst comp))
-        case unreachSoln of
-            Right _ -> return ()
-            Left _ ->
-                forM_ comp $ \ (_, (region, context, pats) ) -> do
-                    logIO "FAILED TO DISCHARGE"
-                    throwError $ PatError.Incomplete region context (map PatError.simplify pats )
+-- dischargeSafety comp = do
+--         logIO $ "DISCHARGING: " ++ (show $ map fst comp)
+--         unreachSoln <- solveConstraint (CAnd  ((CNonEmpty Top ) : map fst comp))
+--         case unreachSoln of
+--             Right _ -> return ()
+--             Left _ ->
+--                 forM_ comp $ \ (_, (region, context, pats) ) -> do
+--                     logIO "FAILED TO DISCHARGE"
+--                     throwError $ PatError.Incomplete region context (map PatError.simplify pats )
 
 getVarName :: forall m . (ConstrainM m) => Variable -> m String 
 getVarName v = fst <$> (liftIO $ UF.get v)          
@@ -678,10 +642,15 @@ optimizeConstr :: forall m . (ConstrainM m) => Bool -> TypeEffect  -> Constraint
 optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts topTipe (constrToList ordConstrs) (safetyToList safety)
     where
         optimizeConstr_ graphOpts topTipe constrList safetyList = do
-            (pairsInter, safetyInter, tInter) <-  doOpts graphOpts topTipe (map (,()) constrList) safetyList (\x -> logIO $ "AUTOMATICALLY DISCHARGING CONSTR " ++ show x)
-            (optimizedSafetyList, optimizedPairs, tRet) <- doOpts graphOpts tInter safetyInter pairsInter  dischargeSafety
+            let tfVars = typeFreeVars topTipe
+            (pairsInter, safetyInter, tInter) <-  doOpts graphOpts tfVars topTipe (map (,()) constrList) safetyList
+            (optimizedSafetyList, preGraphOptimizedPairs, tRet) <- doOpts graphOpts tfVars tInter safetyInter pairsInter
+            let preGraphOptimized = map fst preGraphOptimizedPairs
+            optimized <- case graphOpts of 
+                True ->
+                    removeUnreachableConstraints tfVars preGraphOptimized (preGraphOptimized ++ map fst optimizedSafetyList)
+                False -> return $ map fst preGraphOptimizedPairs
             let optimizedSafety = Safety optimizedSafetyList
-            let optimized = map fst optimizedPairs
             case (optimized == constrList && optimizedSafety ==  safety) of
                 True -> return $ (tRet, constrList, optimizedSafety)
                 False -> optimizeConstr graphOpts tRet (CAnd optimized) optimizedSafety
@@ -694,13 +663,13 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
             newType <- subTypeVars tipe
             return (csub, otherSub, newType)
         doOpts :: forall a b. 
-            Bool 
+            Bool
+            -> [Variable] 
             -> TypeEffect 
             -> [(Constraint, a)] 
             -> [(Constraint, b)] 
-            -> ([(Constraint, a)] -> m ()) 
             -> m ([(Constraint, a)], [(Constraint, b)], TypeEffect)
-        doOpts graphOpts tipe l others discharge = do
+        doOpts graphOpts tfVars tipe l others  = do
             logIO ("Initial list:\n" ++ show (map fst l))
             (lSubbed, oSubbed, tSubbed) <- subConstrPairs l others tipe
             logIO ("After subbed:\n" ++ show (map fst lSubbed))
@@ -709,14 +678,14 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
             (lRet, oRet, tRet) <- subConstrPairs l others tipe
             logIO ("After second sub:\n" ++ show (map fst lRet))
             let totalList = (map fst lRet) ++ (map fst oRet)
-            deadRemoved <- removeDead graphOpts lRet totalList tRet discharge
+            deadRemoved <- removeDead graphOpts tfVars lRet totalList tRet 
             return (deadRemoved, oRet, tRet)
 
 
-        removeDead :: Bool -> [(Constraint, a)] -> [Constraint] -> TypeEffect -> ([(Constraint, a)] -> m ()) -> m [(Constraint, a)]
-        removeDead graphOpts clistWithInter totalList tp discharge = do
+        removeDead :: Bool -> [Variable] -> [(Constraint, a)] -> [Constraint] -> TypeEffect -> m [(Constraint, a)]
+        removeDead graphOpts tfVars clistWithInter totalList tp = do
             let
-                tfVars = typeFreeVars tp
+                -- tfVars = typeFreeVars tp
                 --First we remove constraints of the form
                 -- X << pat 
                 -- or the form (pat << X)
@@ -831,10 +800,7 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
             -- i.e. we only want constraints relevant to the typeEffect
             logIO $ "Easy filter deleting: " ++ show (map (fst . snd) easyDeleted)
             logIO $ "After filtering, giving to graph opt: " ++ show (map (fst . snd) easyFiltered)
-            case graphOpts of 
-                True ->
-                    removeUnreachableConstraints tfVars (map snd easyFiltered) totalList discharge
-                False -> return $ map snd easyFiltered
+            return $ map snd easyFiltered
 
 
         -- subVars :: Constraint -> m Constraint
@@ -1464,8 +1430,8 @@ constrainDefUnrolled tyMap _GammaPath@(_Gamma, pathConstr) def = do
             --Optimize away the constraints that don't have to do with the safety constraints
             let theSafetyConstr = CAnd (getSafetyConstrs optSafety)
             let safetyFreeVars =  constrFreeVars theSafetyConstr
-            relevantConstraints <- removeUnreachableConstraints safetyFreeVars (map (,()) optConstrList) (theSafetyConstr : optConstrList ) _ 
-            let relevantConstraint = CAnd (map fst relevantConstraints)
+            relevantConstraints <- removeUnreachableConstraints safetyFreeVars optConstrList (theSafetyConstr : optConstrList ) 
+            let relevantConstraint = CAnd relevantConstraints
             mConstraintSoln <- solveConstraint ( theSafetyConstr /\ relevantConstraint)
             case mConstraintSoln of
                 Right () -> return ()
