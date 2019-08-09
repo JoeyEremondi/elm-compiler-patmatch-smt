@@ -612,7 +612,7 @@ removeUnreachableConstraints initial candidateConstrs allConstrs = do
     -- logIO $ "Reachable vertices: " ++ show reachableVertices
     --A constraint is reachable if one of its variables is reachable from the initial set
     let constraintReachable c = do
-        let vars = constrFreeVars c
+        let vars = constrPosVars c
         varStrings <- fmap (map fst) $ liftIO $ forM vars UF.get
         return $ not $ null $ List.intersect  varStrings reachableVertices
     filterM constraintReachable  candidateConstrs
