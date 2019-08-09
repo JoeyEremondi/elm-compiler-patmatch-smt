@@ -378,6 +378,11 @@ typeFreeVars ty@(t :@ e) =  (typeLocalVars ty) ++ concatMap typeFreeVars (toList
 constrFreeVars (Fix c) =  (constrLocalVars (Fix c)) ++ concatMap constrFreeVars (toList c)
 litFreeVars (Fix l) =  litLocalVars (Fix l) ++ concatMap litFreeVars ( toList l)
 safetyFreeVars (Safety l) = concatMap  (constrFreeVars . fst ) l
+
+--Like free vars, but only get ones on RHS of implication
+constrPosVars (CImplies _ c) =  constrPosVars c
+constrPosVars (Fix c) =  (constrLocalVars (Fix c)) ++ concatMap constrPosVars (toList c)
+
 -- schemeFreeVars (Forall v t c  ) =  (typeFreeVars t) ++ (constrFreeVars c) 
 
 -- typeFreeTypeVars :: TypeEffect -> [(N.Name, LitPattern)]
@@ -577,14 +582,18 @@ removeUnreachableConstraints initial candidateConstrs allConstrs = do
     initialStrings <- fmap (map fst) $  liftIO $ mapM UF.get initial
     --All varaibles in our constraint set
     allVars <- fmap (map fst) $ liftIO $ mapM UF.get $  List.nub $ initial ++ (concatMap constrFreeVars allConstrs)
-    --Two variables are connected if they occur in the same constraint
-    --We generate the pairs of all variables in a given constraint
-    let constrVarPairs = map (\c -> (c, constrFreeVars c)) allConstrs
-    let edgesFor (c, nodesForCRaw) = do
+    --We are looking for the set of variables that can possibly influence the values of our "initial" variable set
+    --We add an edge (u,v) whenever v can influence the value of u
+    --This happens whenever u occurs positively (right hand side of an implication)
+    --in a constraint in which v is free
+    --TODO do this
+    let constrVarTriples = map (\c -> (c, constrFreeVars c, constrPosVars c)) allConstrs
+    let edgesFor (c, nodesForCRaw, posForCRaw) = do
         nodesForC <- forM nodesForCRaw (liftIO . UF.get)
-        return [(fst c1, fst c2) | c1 <- nodesForC, c2 <- nodesForC]
+        posForC <- forM posForCRaw (liftIO . UF.get)
+        return [(fst c1, fst c2) | c1 <- nodesForC, c2 <- posForC]
     --Combine all the edges from our different constraints
-    allEdges <-  mapM edgesFor  constrVarPairs
+    allEdges <-  mapM edgesFor  constrVarTriples
     -- logIO $ " All edges: " ++ show allEdges
     --Get our edges into the format Data.Graph expects
     --i.e. an adjacency list for each vertex (variable)
@@ -606,8 +615,7 @@ removeUnreachableConstraints initial candidateConstrs allConstrs = do
         let vars = constrFreeVars c
         varStrings <- fmap (map fst) $ liftIO $ forM vars UF.get
         return $ not $ null $ List.intersect  varStrings reachableVertices
-    reachable <- filterM constraintReachable  candidateConstrs
-    return reachable
+    filterM constraintReachable  candidateConstrs
 
 
 -- dischargeSafety comp = do
@@ -646,11 +654,13 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
             (pairsInter, safetyInter, tInter) <-  doOpts graphOpts tfVars topTipe (map (,()) constrList) safetyList
             (optimizedSafetyList, preGraphOptimizedPairs, tRet) <- doOpts graphOpts tfVars tInter safetyInter pairsInter
             let preGraphOptimized = map fst preGraphOptimizedPairs
+            let optimizedSafety = Safety optimizedSafetyList
+            --Remove constraints that aren't "connected" to either the variables of our type
+            --Our our current safety constraints
             optimized <- case graphOpts of 
                 True ->
-                    removeUnreachableConstraints tfVars preGraphOptimized (preGraphOptimized ++ map fst optimizedSafetyList)
+                    removeUnreachableConstraints (tfVars ++ safetyFreeVars optimizedSafety) preGraphOptimized (preGraphOptimized ++ map fst optimizedSafetyList)
                 False -> return $ map fst preGraphOptimizedPairs
-            let optimizedSafety = Safety optimizedSafetyList
             case (optimized == constrList && optimizedSafety ==  safety) of
                 True -> return $ (tRet, constrList, optimizedSafety)
                 False -> optimizeConstr graphOpts tRet (CAnd optimized) optimizedSafety
