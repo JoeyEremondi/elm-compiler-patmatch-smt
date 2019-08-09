@@ -474,27 +474,37 @@ generalize _Gamma tipe constr safety = do
     return $  Forall (allFreeVars List.\\ gammaFreeVars) tipe constr safety
 
 
-subConstrVars (Fix c) =
+subConstrVars :: ConstrainM m => Constraint -> WriterT [Constraint] m Constraint
+subConstrVars (Fix c) = do
+    logIO $ "In subConstrVars " ++ show (Fix c)
     case c of
         (CSubset_ l1 l2) -> CSubset <$> (subLitVars l1) <*> (subLitVars l2)
         (CEqual_ l1 l2) -> CEqual <$> (subLitVars l1) <*> (subLitVars l2)
         (CNonEmpty_ l1) -> CNonEmpty <$> (subLitVars l1) 
         _ -> Fix <$> mapM subConstrVars c
--- subLitVars :: LitPattern -> m LitPattern
+
+subLitVars :: ConstrainM m => LitPattern -> WriterT [Constraint] m (LitPattern)
 subLitVars (Fix l) = case l of
     (SetVar_ v) -> do
-        (_,ty) <- liftIO $ UF.get v
+        (nm,ty) <- liftIO $ UF.get v
         case ty of
             Nothing -> return (SetVar v)
-            (Just l) -> subLitVars l
+            (Just lnew) -> do
+                when (v `elem` litFreeVars lnew) $ do
+                        liftIO $ UF.set v (nm, Nothing)
+                        tell [CSubset (SetVar v) lnew, CSubset lnew (SetVar v)]
+                subLitVars lnew
+                -- logIO $ "Got lit " ++ show lnew ++ " for " ++ show v
+                
     _ -> Fix <$> mapM subLitVars l
+
 subTypeVars (t :@ e) = do
     tnew <-  (mapM subTypeVars t)
     enew <- (subLitVars e)
     return $ tnew :@ enew
 
 simplifyConstraint :: Constraint -> Constraint
-simplifyConstraint (CAnd l) = 
+simplifyConstraint (CAnd l) = trace "SC" $ 
     let
         cl =   (flip concatMap) l $ \c -> case simplifyConstraint c of
             CAnd l -> l
@@ -504,12 +514,12 @@ simplifyConstraint (CAnd l) =
         [] -> CTrue
         [c] -> c
         _ -> if CFalse `elem` cl then CFalse else CAnd cl 
-simplifyConstraint (CImplies x y ) = case (simplifyConstraint x, simplifyConstraint y) of
+simplifyConstraint (CImplies x y ) = trace "SC" $ case (simplifyConstraint x, simplifyConstraint y) of
     (CTrue, sy) -> simplifyConstraint y
     (CFalse, _) -> CTrue
     (sx, CImplies sx2 sy) -> simplifyConstraint (CImplies (sx /\ sx2) sy)
     (sx, sy) -> CImplies sx sy
-simplifyConstraint (CNonEmpty x) = case simplifyLit x of
+simplifyConstraint (CNonEmpty x) = trace "SC" $case simplifyLit x of
     Top -> CTrue
     Bottom -> CFalse
     Intersect a b | isSingleton a -> simplifyConstraint $ CSubset a b
@@ -517,7 +527,7 @@ simplifyConstraint (CNonEmpty x) = case simplifyLit x of
     Ctor _ args -> simplifyConstraint $ CAnd $ map CNonEmpty args
 
     xs -> if forSureNotEmpty xs then CTrue else CNonEmpty xs
-simplifyConstraint (CSubset x y) = case (simplifyLit x, simplifyLit y) of
+simplifyConstraint (CSubset x y) = trace "SC" $ case (simplifyLit x, simplifyLit y) of
     (Top, rhs@(SetVar _)) -> CEqual rhs Top
     (lhs@(SetVar _), Bottom) -> CEqual lhs Bottom
     (_, Top) -> CTrue
@@ -526,10 +536,10 @@ simplifyConstraint (CSubset x y) = case (simplifyLit x, simplifyLit y) of
     (Ctor s1 _, Ctor s2 _) | s1 /= s2 -> CFalse
     (Ctor nm xl, Ctor nm' yl) | nm == nm' -> simplifyConstraint (CAnd $ zipWith CSubset xl yl)
     (xs, ys) -> if  xs == ys then CTrue else CSubset xs ys
-simplifyConstraint (CEqual x y) = case (simplifyLit x, simplifyLit y) of
+simplifyConstraint (CEqual x y) = trace "SC" $ case (simplifyLit x, simplifyLit y) of
     (Ctor nm xl, Ctor nm' yl) | nm == nm' -> simplifyConstraint (CAnd $ zipWith CEqual xl yl)
     (xs, ys) -> if  xs == ys then CTrue else CEqual xs ys
-simplifyConstraint CTrue = CTrue
+simplifyConstraint CTrue = trace "SC" $ CTrue
 
 simplifyLit :: LitPattern -> LitPattern
 
@@ -576,6 +586,7 @@ pairsToGraphMap vertices edges =
 
 removeUnreachableConstraints :: (ConstrainM m) => [Variable] -> [Constraint] -> [Constraint] ->  m [(Constraint)]
 removeUnreachableConstraints initial candidateConstrs allConstrs = do
+    logIO "Starting graph constraints"
     --TODO okay to assume that all vars live, even if replaced by expr?
     --Variable names for all types reachable in our "initial variables"
     --i.e. those referenced by the TypeEffect we're dealing with
@@ -594,7 +605,7 @@ removeUnreachableConstraints initial candidateConstrs allConstrs = do
         return [(fst c1, fst c2) | c1 <- posForC, c2 <- nodesForC]
     --Combine all the edges from our different constraints
     allEdges <-  mapM edgesFor  constrVarTriples
-    -- logIO $ " All edges: " ++ show allEdges
+    logIO $ " All edges: " ++ show allEdges
     --Get our edges into the format Data.Graph expects
     --i.e. an adjacency list for each vertex (variable)
     -- logIO $ "Got graph edges " ++ show (pairsToGraphMap allVertices allEdges)
@@ -665,9 +676,12 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
                 True -> return $ (tRet, constrList, optimizedSafety)
                 False -> optimizeConstr graphOpts tRet (CAnd optimized) optimizedSafety
         subConstrPair (c, info) = do
+            logIO $ "Start of subConstr" ++ show c
             csub <- subConstrVars c
+            logIO $ "Start of simplifyConstr" ++ show csub
             return (simplifyConstraint csub, info)
         subConstrPairs cList otherList tipe = do
+            logIO "SubConstrPairs"
             csub <- forM cList subConstrPair
             otherSub <- forM otherList subConstrPair
             newType <- subTypeVars tipe
@@ -681,11 +695,13 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
             -> m ([(Constraint, a)], [(Constraint, b)], TypeEffect)
         doOpts graphOpts tfVars tipe l others  = do
             logIO ("Initial list:\n" ++ show (map fst l))
-            (lSubbed, oSubbed, tSubbed) <- subConstrPairs l others tipe
+            ((lSubbed, oSubbed, tSubbed), newConstrs1) <- runWriterT $ subConstrPairs l others tipe
             logIO ("After subbed:\n" ++ show (map fst lSubbed))
             optimized <- helper lSubbed []
             logIO ("After opt:\n" ++ show (map fst optimized))
-            (lRet, oRet, tRet) <- subConstrPairs l others tipe
+            ((lRetWithoutNew, oRet, tRet), newConstrs2) <- runWriterT $ subConstrPairs l others tipe
+            let defaultInfo = snd $ head lRetWithoutNew
+            let lRet = (map (,defaultInfo) newConstrs1) ++ (map (,defaultInfo) newConstrs2) ++ lRetWithoutNew  
             logIO ("After second sub:\n" ++ show (map fst lRet))
             let totalList = (map fst lRet) ++ (map fst oRet)
             deadRemoved <- removeDead graphOpts tfVars lRet totalList tRet 
