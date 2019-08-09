@@ -591,7 +591,7 @@ removeUnreachableConstraints initial candidateConstrs allConstrs = do
     let edgesFor (c, nodesForCRaw, posForCRaw) = do
         nodesForC <- forM nodesForCRaw (liftIO . UF.get)
         posForC <- forM posForCRaw (liftIO . UF.get)
-        return [(fst c1, fst c2) | c1 <- nodesForC, c2 <- posForC]
+        return [(fst c1, fst c2) | c1 <- posForC, c2 <- nodesForC]
     --Combine all the edges from our different constraints
     allEdges <-  mapM edgesFor  constrVarTriples
     -- logIO $ " All edges: " ++ show allEdges
@@ -869,6 +869,14 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
         -- helper ((CImplies ((CSubset  lhs Bottom)) rhs,info) : l) accum | isSingleton lhs = helper l accum
         helper ((CEqual a (Intersect b a'), info): rest) accum | a == a' = helper ((CSubset a b,info):rest) accum
         helper ((CSubset a (Intersect b a'), info): rest) accum | a == a' = helper ((CSubset a b,info):rest) accum
+        --If we have constructors that we know are the only constructor for the type
+        -- i.e. tuples, then this gives us more information about subset constraints
+        helper ((CImplies cond (CSubset lhs@(Ctor tupleName vars) rhs@(SetVar rhsVar)), info ): rest) accum | tupleName `elem` ["PatMatchPair", "PatMatchTriple"] = do
+            freshVars <- forM vars (\ _ -> SetVar <$> freshVar)
+            let newRHS = (Ctor tupleName freshVars)
+            helper ((CEqual rhs newRHS, info) : (CImplies cond (CSubset lhs newRHS), info) : rest) accum
+
+            
         helper (h : rest) accum = helper rest (h : accum)
 
 
