@@ -491,14 +491,14 @@ subTypeVars (t :@ e) = do
 simplifyConstraint :: Constraint -> Constraint
 simplifyConstraint (CAnd l) = 
     let
-        cl =  (flip concatMap) l $ \c -> case simplifyConstraint c of
+        cl =   (flip concatMap) l $ \c -> case simplifyConstraint c of
             CAnd l -> l
             CTrue -> []
             cs -> [cs]
     in case cl of
         [] -> CTrue
         [c] -> c
-        _ -> CAnd cl 
+        _ -> if CFalse `elem` cl then CFalse else CAnd cl 
 simplifyConstraint (CImplies x y ) = case (simplifyConstraint x, simplifyConstraint y) of
     (CTrue, sy) -> simplifyConstraint y
     (CFalse, _) -> CTrue
@@ -531,7 +531,7 @@ simplifyLit :: LitPattern -> LitPattern
 simplifyLit (Ctor s l) = 
     case map simplifyLit l of
         [a `Union` b] -> simplifyLit $ (Ctor s [a]) `Union` (Ctor s [b])
-        [a `Intersect` b] -> simplifyLit $ (Ctor s [a]) `Intersect` (Ctor s [b])
+        -- [a `Intersect` b] -> simplifyLit $ (Ctor s [a]) `Intersect` (Ctor s [b])
         sl | Bottom `elem` sl -> Bottom
         sl -> Ctor s sl
 simplifyLit (Union x y) = 
@@ -540,8 +540,8 @@ simplifyLit (Union x y) =
         (a, Top) -> Top
         (Bottom, b) -> b
         (a, Bottom) -> a
-        (Ctor nm xl, Ctor nm' yl) | nm == nm' -> 
-            Ctor nm $ map simplifyLit $ zipWith Union xl yl
+        -- (Ctor nm xl, Ctor nm' yl) | nm == nm' -> 
+        --     Ctor nm $ map simplifyLit $ zipWith Union xl yl
         (xs, ys) -> Union xs ys
 simplifyLit (Intersect x y) = 
     case (simplifyLit x, simplifyLit y) of
@@ -674,7 +674,7 @@ data InterLHS =
 makeLHSConstraint (SimpleLHS lhs) rhs = CSubset lhs rhs
 makeLHSConstraint (ImplicationLHS cond lhs) rhs = CImplies cond (CSubset lhs rhs)
 
-optimizeConstr :: forall m . (ConstrainM m) => Bool -> TypeEffect  -> Constraint -> Safety -> m (TypeEffect, Constraint, Safety)
+optimizeConstr :: forall m . (ConstrainM m) => Bool -> TypeEffect  -> Constraint -> Safety -> m (TypeEffect, [Constraint], Safety)
 optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts topTipe (constrToList ordConstrs) (safetyToList safety)
     where
         optimizeConstr_ graphOpts topTipe constrList safetyList = do
@@ -683,7 +683,7 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
             let optimizedSafety = Safety optimizedSafetyList
             let optimized = map fst optimizedPairs
             case (optimized == constrList && optimizedSafety ==  safety) of
-                True -> return $ (tRet, CAnd constrList, optimizedSafety)
+                True -> return $ (tRet, constrList, optimizedSafety)
                 False -> optimizeConstr graphOpts tRet (CAnd optimized) optimizedSafety
         subConstrPair (c, info) = do
             csub <- subConstrVars c
@@ -735,10 +735,12 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
 
 
                 cLHS (CSubset (SetVar v) _) = Just v
+                cLHS (CImplies _ (CSubset (SetVar v) _)) = Just v
                 cLHS _ = Nothing
                 
 
                 cRHS (CSubset other (SetVar v)) = Just (v, SimpleLHS other)
+                cRHS (CImplies cond (CSubset other (SetVar v))) = Just (v, ImplicationLHS cond other)
                 cRHS _ = Nothing
 
             filteredLHSList <- (fmap Maybe.catMaybes ) $ forM totalList $ \c -> 
@@ -793,29 +795,34 @@ optimizeConstr graphOpts topTipe ordConstrs safety = optimizeConstr_ graphOpts t
             -- logIO $ "Got varInterMap " ++ show varInterMap
             --If a variable only serves as an intermediate (i.e. A < B, A' < B, B < C)
             --then eliminate it (i.e. into A < C, A' < C)
-            clist <- (fmap concat ) $ forM clistWithInter $ \(c, info) -> 
+            let adjustIntermediate (c,info) = 
                     case c of
                         CSubset (SetVar var) rhs -> do 
                             v <- getVarName var
                             case Map.lookup v varInterMap of
                                 Nothing -> return [(c, info)]
-                                Just lhses -> return $ map (\lhs -> (makeLHSConstraint lhs rhs, info) ) lhses
-                        -- CImplies cond (CSubset (SetVar var) rhs) -> do 
-                        --     v <- getVarName var
-                        --     case Map.lookup v varInterMap of
-                        --         Nothing -> return [(c, info)]
-                        --         Just lhses -> return $ map (\lhs -> (CImplies cond $  makeLHSConstraint lhs rhs , info)) lhses
+                                Just lhses -> do
+                                    newConstrs <- forM lhses $ \lhs ->  adjustIntermediate (makeLHSConstraint lhs rhs, info)
+                                    return $ concat newConstrs
+                        CImplies cond (CSubset (SetVar var) rhs) -> do 
+                            v <- getVarName var
+                            case Map.lookup v varInterMap of
+                                Nothing -> return [(c, info)]
+                                Just lhses -> do
+                                    newConstrs <- forM lhses $ \lhs ->  adjustIntermediate (makeLHSConstraint lhs rhs, info)
+                                    return $ map (\(c,_) -> (CImplies cond c , info)) $ concat newConstrs
                         CSubset _ (SetVar var) -> do
                             v <- getVarName var
                             return $ case Map.member v varInterMap of
                                 True -> []
                                 False -> [(c,info)]
-                        -- CImplies _ (CSubset _ (SetVar var)) -> do
-                        --     v <- getVarName var
-                        --     return $ case Map.member v varInterMap of
-                        --         True -> []
-                        --         False -> [(c,info)]
+                        CImplies _ (CSubset _ (SetVar var)) -> do
+                            v <- getVarName var
+                            return $ case Map.member v varInterMap of
+                                True -> []
+                                False -> [(c,info)]
                         _ -> return [(c,info)] 
+            clist <- (fmap concat ) $ forM clistWithInter adjustIntermediate
             boolList <- forM clist (\x -> (fmap not) $ constrIsDead (fst x))
             let boolPairList = zip boolList clist
             let (easyFiltered, easyDeleted) = List.partition fst boolPairList
@@ -1439,9 +1446,9 @@ constrainDefUnrolled tyMap _GammaPath@(_Gamma, pathConstr) def = do
     logIO $ N.toString  x ++ ": Got unopt type " ++ (show $ defType)
     -- (optimizedDefType , optimizedDefConstr, optimizedDefSafety) <- optimizeConstr defType (defConstr )
     logIO $ "Getting optimized constraints for scheme"
-    (optType , optConstr, optSafety) <- optimizeConstr True defType defConstr theSafety
+    (optType , optConstrList, optSafety) <- optimizeConstr True defType defConstr theSafety
     logIO $ N.toString  x ++ ": Got optimized safety constraints " ++ (show $ getSafetyConstrs optSafety)
-    logIO $ N.toString  x ++ ": Got optimized regular constraints " ++ (show $ optConstr)
+    logIO $ N.toString  x ++ ": Got optimized regular constraints " ++ (show $ optConstrList)
     logIO $ N.toString  x ++ ": Got optimized type " ++ (show $ optType)
     -- --We do one last optimization pass where we don't care about the type
     -- --This is the constraint we pass to the SMT solver, but NOT the one we generalize for our type scheme
@@ -1454,13 +1461,18 @@ constrainDefUnrolled tyMap _GammaPath@(_Gamma, pathConstr) def = do
     case ( unSafety optSafety) of
         [] -> logIO "Skipping because no safety constraints" 
         _ -> do 
-            mConstraintSoln <- solveConstraint (optConstr /\ CAnd (getSafetyConstrs optSafety))
+            --Optimize away the constraints that don't have to do with the safety constraints
+            let theSafetyConstr = CAnd (getSafetyConstrs optSafety)
+            let safetyFreeVars =  constrFreeVars theSafetyConstr
+            relevantConstraints <- removeUnreachableConstraints safetyFreeVars (map (,()) optConstrList) (theSafetyConstr : optConstrList ) _ 
+            let relevantConstraint = CAnd (map fst relevantConstraints)
+            mConstraintSoln <- solveConstraint ( theSafetyConstr /\ relevantConstraint)
             case mConstraintSoln of
                 Right () -> return ()
                 Left _ -> do
                     -- error "Pattern match failure"
                     failures <- forM safetyList $ \(safetyConstr, (region, context, pats)) -> do
-                        soln <- solveConstraint (optConstr /\ safetyConstr)
+                        soln <- solveConstraint (relevantConstraint /\ safetyConstr)
                         case soln of
                             Right _ -> return $ Nothing
                             Left _ -> do
@@ -1475,7 +1487,7 @@ constrainDefUnrolled tyMap _GammaPath@(_Gamma, pathConstr) def = do
 
     --Now that we have types and constraints for the body, we generalize them over all free variables
     --not  occurring in Gamma, and return an environment mapping the def name to this scheme
-    scheme <- generalize (fst _GammaPath) optType optConstr optSafety
+    scheme <- generalize (fst _GammaPath) optType (CAnd optConstrList) optSafety
     logIO $ "Generalized type for " ++ N.toString x ++ " is " ++ (show scheme)
     return $ Map.singleton x scheme
     where
