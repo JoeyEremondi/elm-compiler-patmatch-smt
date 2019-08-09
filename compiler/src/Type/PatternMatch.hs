@@ -379,6 +379,15 @@ constrFreeVars (Fix c) =  (constrLocalVars (Fix c)) ++ concatMap constrFreeVars 
 litFreeVars (Fix l) =  litLocalVars (Fix l) ++ concatMap litFreeVars ( toList l)
 safetyFreeVars (Safety l) = concatMap  (constrFreeVars . fst ) l
 
+safeLitLocalVars :: LitPattern -> [Variable]
+safeLitLocalVars (SetVar v) = [v]
+safeLitLocalVars l = []
+
+safeLitFreeVars :: LitPattern -> [Variable]
+safeLitFreeVars (Fix l) =  safeLitLocalVars (Fix l) ++ concatMap safeLitFreeVars ( toList l)
+
+
+
 --Like free vars, but only get ones on RHS of implication
 constrPosVars (CImplies _ c) =  constrPosVars c
 constrPosVars (Fix c) =  (constrLocalVars (Fix c)) ++ concatMap constrPosVars (toList c)
@@ -477,26 +486,34 @@ generalize _Gamma tipe constr safety = do
 subConstrVars :: ConstrainM m => Constraint -> WriterT [Constraint] m Constraint
 subConstrVars (Fix c) = do
     logIO $ "In subConstrVars " ++ show (Fix c)
-    case c of
+    ret <- case c of
         (CSubset_ l1 l2) -> CSubset <$> (subLitVars l1) <*> (subLitVars l2)
         (CEqual_ l1 l2) -> CEqual <$> (subLitVars l1) <*> (subLitVars l2)
         (CNonEmpty_ l1) -> CNonEmpty <$> (subLitVars l1) 
         _ -> Fix <$> mapM subConstrVars c
+    logIO $ "Returning " ++ show ret
+    return ret
 
 subLitVars :: ConstrainM m => LitPattern -> WriterT [Constraint] m (LitPattern)
-subLitVars (Fix l) = case l of
-    (SetVar_ v) -> do
-        (nm,ty) <- liftIO $ UF.get v
-        case ty of
-            Nothing -> return (SetVar v)
-            (Just lnew) -> do
-                when (v `elem` litFreeVars lnew) $ do
-                        liftIO $ UF.set v (nm, Nothing)
-                        tell [CSubset (SetVar v) lnew, CSubset lnew (SetVar v)]
-                subLitVars lnew
-                -- logIO $ "Got lit " ++ show lnew ++ " for " ++ show v
-                
-    _ -> Fix <$> mapM subLitVars l
+subLitVars (Fix l) = do
+    logIO $ "Subbing lit " ++ show (Fix l) 
+    case l of
+        (SetVar_ v) -> do
+            (nm,ty) <- liftIO $ UF.get v
+            case ty of
+                Nothing -> return (SetVar v)
+                (Just lnew) -> do
+                    logIO "Checking for cycle"
+                    when (v `elem` safeLitFreeVars lnew) $ do
+                            liftIO $ UF.set v (nm, Nothing)
+                            logIO "Avoiding cycle"
+                            tell [CSubset (SetVar v) lnew, CSubset lnew (SetVar v)]
+                    logIO $ "Got lit " ++ show lnew ++ " for " ++ show v
+                    subLitVars lnew
+                    
+        _ -> do
+            logIO "Lit fix csae"
+            Fix <$> mapM subLitVars l
 
 subTypeVars (t :@ e) = do
     tnew <-  (mapM subTypeVars t)
