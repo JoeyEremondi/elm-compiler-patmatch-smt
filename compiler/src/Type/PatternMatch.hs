@@ -1455,10 +1455,13 @@ constrainDefUnrolled tyMap _GammaPath@(_Gamma, pathConstr) def = do
                 Right () -> return ()
                 Left _ -> do
                     -- error "Pattern match failure"
-                    failures <- forM safetyList $ \(safetyConstr, (region, context, pats)) -> do
+                    logIO $ "Pattern match failure!"
+                    failures <- forM (unSafety optSafety) $ \(safetyConstr, (region, context, pats)) -> do
                         soln <- solveConstraint (relevantConstraint /\ safetyConstr)
                         case soln of
-                            Right _ -> return $ Nothing
+                            Right _ -> do
+                                logIO $ "Success"
+                                return $ Nothing
                             Left _ -> do
                                 logIO  $ "SAFETY:  failed with " ++ show safetyConstr ++ "\ndefConstr: " ++ show defConstr
                                 return $ Just (region, context, pats) --TODO get unmatched patterns
