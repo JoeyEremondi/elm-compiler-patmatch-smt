@@ -244,11 +244,15 @@ p1 ==== p2 =
         -- (Bottom, _) -> l2 << Bottom
         _ -> CEqual l1 l2
 
+--When setting a variable type to top, we only unify its positively occuring variables with top
+--This ensures that it can accept any input, but we know nothing about its output
+--TODO: get rid of this when we support modules
+
 deepUnifyTop :: TypeEffect -> Constraint
-deepUnifyTop te = CAnd $ (flip map) (typeFreeVars te) (==== Top)
+deepUnifyTop te = CAnd $ (flip map) (typePositiveVars te) (==== Top)
 
 doDeepUnifyTop :: ConstrainM m => TypeEffect -> m ()
-doDeepUnifyTop te = forM_ (typeFreeVars te) $ \var -> unifyEffects (SetVar var) Top
+doDeepUnifyTop te = forM_ (typePositiveVars te) $ \var -> unifyEffects (SetVar var) Top
 
 
 unions :: (Subsetable a, Ord a) => [a] -> LitPattern
@@ -386,6 +390,13 @@ litLocalVars l = []
 litFreeVars :: LitPattern -> [Variable]
 litFreeVars (Fix l) =  litLocalVars (Fix l) ++ concatMap litFreeVars ( toList l)
 
+typePositiveVars (Fun cod dom :@ e) = typePositiveVars dom ++ typeNegativeVars cod
+typePositiveVars ty@(t :@ e) =  (typeLocalVars ty) ++ concatMap typePositiveVars (toList t)
+
+--Function arrow flips the polarity
+typePositiveVars (Fun cod dom :@ e) = typeNegativeVars dom ++ typePositiveVars cod
+--Local variables never occur negatively in a type
+typeNegativeVars ty@(t :@ e) = concatMap typeNegativeVars (toList t)
 
 
 --Like free vars, but only get ones on RHS of implication
@@ -615,7 +626,7 @@ removeUnreachableConstraints initial candidateConstrs allConstrs = do
         return [(fst c1, fst c2) | c1 <- posForC, c2 <- nodesForC]
     --Combine all the edges from our different constraints
     allEdges <-  mapM edgesFor  constrVarTriples
-    logIO $ " All edges: " ++ show allEdges
+    -- logIO $ " All edges: " ++ show allEdges
     --Get our edges into the format Data.Graph expects
     --i.e. an adjacency list for each vertex (variable)
     -- logIO $ "Got graph edges " ++ show (pairsToGraphMap allVertices allEdges)
@@ -663,6 +674,7 @@ safetyToList s =
 data InterLHS = 
     SimpleLHS LitPattern
     | ImplicationLHS Constraint LitPattern
+    deriving (Show)
 
 makeLHSConstraint (SimpleLHS lhs) rhs = CSubset lhs rhs
 makeLHSConstraint (ImplicationLHS cond lhs) rhs = CImplies cond (CSubset lhs rhs)
@@ -684,7 +696,7 @@ optimizeConstr_ graphOpts topTipe constrList safetyList = do
         True ->
             removeUnreachableConstraints (tfVars ++ safetyFreeVars (Safety optimizedSafetyList)) preGraphOptimized (preGraphOptimized ++ map fst optimizedSafetyList)
         False -> return $ map fst preGraphOptimizedPairs
-    logIO $ "Comparing " ++ show optimized ++ "\nto " ++ show constrList ++ "\nAND " ++ show (map fst optimizedSafetyList) ++ "\nto " ++ show  (map fst safetyList)
+    -- logIO $ "Comparing " ++ show optimized ++ "\nto " ++ show constrList ++ "\nAND " ++ show (map fst optimizedSafetyList) ++ "\nto " ++ show  (map fst safetyList)
     case (optimized == constrList && (map fst optimizedSafetyList) ==  (map fst safetyList)) of
         True -> return $ (tRet, optimized, Safety optimizedSafetyList)
         False -> optimizeConstr_ graphOpts tRet optimized optimizedSafetyList
@@ -775,8 +787,7 @@ optimizeConstr_ graphOpts topTipe constrList safetyList = do
                     numOccs = Maybe.fromMaybe 0 $ Map.lookup v occurenceCountMap
                     numLHS = Maybe.fromMaybe 0 $ Map.lookup v lhsMap
                     lhsForRHSOccs = Maybe.fromMaybe [] $ Map.lookup v rhsMap
-                -- logIO $ "Var " ++ v ++ " lhs  " ++ show numLHS ++ "  rhs  " ++ show lhsForRHSOccs
-                in case (numOccs == numLHS + length lhsForRHSOccs, v `elem` tfReps) of
+                in trace ("Var " ++ v ++ " lhs  " ++ show numLHS ++ "  rhs  " ++ show lhsForRHSOccs) $ case (numOccs == numLHS + length lhsForRHSOccs, v `elem` tfReps) of
                     (True, False) -> Just (v, lhsForRHSOccs)  
                     _ -> Nothing
 
@@ -799,11 +810,35 @@ optimizeConstr_ graphOpts topTipe constrList safetyList = do
             constrIsDead (CImplies _ CTrue) = return True
             constrIsDead c = return False
         let varInterMap =  Map.fromList $ Maybe.catMaybes  $ map varIsIntermediate allVars
-        -- logIO $ "Got varInterMap " ++ show varInterMap
+        logIO $ "Got varInterMap " ++ show varInterMap
         --If a variable only serves as an intermediate (i.e. A < B, A' < B, B < C)
         --then eliminate it (i.e. into A < C, A' < C)
         let adjustIntermediate (c,info) = 
                 case c of
+                    --If both are variables, then we check if we can delete
+                    --Because the RHS is intermediate. If so, we do, otherwise we check lhs
+                    CSubset (SetVar vlhs) (SetVar vrhs) -> do 
+                        rlhs <- getVarName vlhs
+                        rrhs <- getVarName vrhs
+                        case Map.lookup rrhs varInterMap of
+                            Just _ -> return []
+                            Nothing -> 
+                                case Map.lookup rlhs varInterMap of
+                                    Nothing -> return [(c, info)]
+                                    Just lhses -> do
+                                        newConstrs <- forM lhses $ \lhs ->  adjustIntermediate (makeLHSConstraint lhs (SetVar vrhs), info)
+                                        return $ concat newConstrs
+                    CImplies cond (CSubset (SetVar vlhs) (SetVar vrhs)) -> do 
+                        rlhs <- getVarName vlhs
+                        rrhs <- getVarName vrhs
+                        case Map.lookup rrhs varInterMap of
+                            Just _ -> return []
+                            Nothing ->
+                                case Map.lookup rlhs varInterMap of
+                                    Nothing -> return [(c, info)]
+                                    Just lhses -> do
+                                        newConstrs <- forM lhses $ \lhs ->  adjustIntermediate (makeLHSConstraint lhs (SetVar vrhs), info)
+                                        return $ map (\(c,_) -> (CImplies cond c , info)) $ concat newConstrs
                     CSubset (SetVar var) rhs -> do 
                         v <- getVarName var
                         case Map.lookup v varInterMap of
@@ -844,30 +879,26 @@ optimizeConstr_ graphOpts topTipe constrList safetyList = do
     -- subVars :: Constraint -> m Constraint
 
     helper :: [(Constraint, a)] -> [(Constraint,a)] -> m [(Constraint, a)]
-    helper l accum = do
-        logIO $ ("Helper " ++ show (map fst l) ++ "\n   ACCUM " ++ show (map fst accum)) 
-        helper_ l accum
-    helper_ [] accum =  do
-        logIO "Helper return"
+    helper [] accum =  do
         return $ reverse accum
-    helper_ ((CTrue,_) : rest) accum =  helper rest accum
+    helper ((CTrue,_) : rest) accum =  helper rest accum
     --basically modus-ponens
-    helper_ ((CImplies lhs rhs, info) : (lhs', info') : rest ) accum | lhs == lhs' =  helper ((rhs, info) : (lhs, info') : rest) accum
-    helper_ ((CEqual (SetVar l1) (SetVar l2), info) : rest) accum =  do
+    helper ((CImplies lhs rhs, info) : (lhs', info') : rest ) accum | lhs == lhs' =  helper ((rhs, info) : (lhs, info') : rest) accum
+    helper ((CEqual (SetVar l1) (SetVar l2), info) : rest) accum =  do
         eq <- liftIO $ UF.equivalent l1 l2
         case eq of
             True -> helper rest accum
             False -> do
                 constr <- unifyEffectVars l1 l2
                 helper ((constr,info): rest) accum
-    helper_ ((CEqual l1 (SetVar v), info) : rest) accum =  do
+    helper ((CEqual l1 (SetVar v), info) : rest) accum =  do
         (name, mval) <- liftIO $ UF.get v
         case mval of
             Nothing -> do
                 liftIO $ UF.set v (name, Just l1)
                 helper rest accum
             Just l2 -> helper ((CEqual l1 l2,info ) : rest) accum
-    helper_ ((CEqual (SetVar v) l1, info ): rest) accum =  do
+    helper ((CEqual (SetVar v) l1, info ): rest) accum =  do
         (name, mval) <- liftIO $ UF.get v
         case mval of
             Nothing -> do
@@ -876,27 +907,26 @@ optimizeConstr_ graphOpts topTipe constrList safetyList = do
             Just l2 -> helper ((CEqual l1 l2, info ) : rest) accum
 
 
-    -- helper_ ((CSubset (SetVar l1) (SetVar l2), info) : (CSubset (SetVar l2') (SetVar l1'), info2) : rest) accum | l1 == l1' && l2 == l2' = do
+    -- helper ((CSubset (SetVar l1) (SetVar l2), info) : (CSubset (SetVar l2') (SetVar l1'), info2) : rest) accum | l1 == l1' && l2 == l2' = do
     --     desc <- liftIO $ UF.get l1
     --     liftIO $ UF.union l1 l2 desc
     --     helper rest accum
-    helper_ ((CSubset Top pat@(SetVar _), info) : rest) accum =  helper ((CEqual Top pat, info):rest) accum
-    helper_ ((CSubset pat@(SetVar _) Bottom, info) : rest) accum =  helper ((CEqual Bottom pat, info):rest) accum
-    helper_ ((CAnd l,info) : rest) accum =  helper ( (map (,info) l) ++ rest) accum
+    helper ((CSubset Top pat@(SetVar _), info) : rest) accum =  helper ((CEqual Top pat, info):rest) accum
+    helper ((CSubset pat@(SetVar _) Bottom, info) : rest) accum =  helper ((CEqual Bottom pat, info):rest) accum
+    helper ((CAnd l,info) : rest) accum =  helper ( (map (,info) l) ++ rest) accum
 
-    -- helper_ ((CEqual a (Intersect b a'), info): rest) accum | a == a' = helper ((CSubset a b,info):rest) accum
-    -- helper_ ((CSubset a (Intersect b a'), info): rest) accum | a == a' = helper ((CSubset a b,info):rest) accum
+    -- helper ((CEqual a (Intersect b a'), info): rest) accum | a == a' = helper ((CSubset a b,info):rest) accum
+    -- helper ((CSubset a (Intersect b a'), info): rest) accum | a == a' = helper ((CSubset a b,info):rest) accum
 
     --If we have constructors that we know are the only constructor for the type
     -- i.e. tuples, then this gives us more information about subset constraints
-    helper_ ((CImplies cond (CSubset lhs@(Ctor tupleName vars) rhs@(SetVar rhsVar)), info ): rest) accum | tupleName `elem` ["PatMatchPair", "PatMatchTriple"] = trace "H10" $ do
+    helper ((CImplies cond (CSubset lhs@(Ctor tupleName vars) rhs@(SetVar rhsVar)), info ): rest) accum | tupleName `elem` ["PatMatchPair", "PatMatchTriple"] = trace "H10" $ do
         freshVars <- forM vars (\ _ -> SetVar <$> freshVar)
         let newRHS = (Ctor tupleName freshVars)
         helper ((CEqual rhs newRHS, info) : (CImplies cond (CSubset lhs newRHS), info) : rest) accum
 
         
-    helper_ (h : rest) accum = do
-        logIO $ "Helper default" 
+    helper (h : rest) accum = do
         helper rest (h : accum)
 
 
