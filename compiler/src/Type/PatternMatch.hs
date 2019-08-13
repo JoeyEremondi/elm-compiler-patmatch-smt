@@ -567,7 +567,7 @@ simplifyLit :: LitPattern -> LitPattern
 
 simplifyLit (Ctor s l) = 
     case map simplifyLit l of
-        [a `Union` b] -> simplifyLit $ (Ctor s [a]) `Union` (Ctor s [b])
+        -- [a `Union` b] -> simplifyLit $ (Ctor s [a]) `Union` (Ctor s [b])
         -- [a `Intersect` b] -> simplifyLit $ (Ctor s [a]) `Intersect` (Ctor s [b])
         sl | Bottom `elem` sl -> Bottom
         sl -> Ctor s sl
@@ -577,9 +577,17 @@ simplifyLit (Union x y) =
         (a, Top) -> Top
         (Bottom, b) -> b
         (a, Bottom) -> a
-        -- (Ctor nm xl, Ctor nm' yl) | nm == nm' -> 
-        --     Ctor nm $ map simplifyLit $ zipWith Union xl yl
-        (xs, ys) -> Union xs ys
+        (Ctor nm xl, Ctor nm' yl) | nm == nm' -> 
+            Ctor nm $ map simplifyLit $ zipWith Union xl yl
+        (xs, ys) -> 
+            let 
+                xl = toUnionList xs
+                yl = toUnionList ys
+                theList = map head $ List.group $ List.sort (xl ++ yl)
+            in case theList of
+                [] -> Bottom
+                [l] -> l
+                (h : t) -> List.foldr Union h t   
 simplifyLit (Intersect x y) = 
     case (simplifyLit x, simplifyLit y) of
         (Bottom, b) -> Bottom
@@ -598,6 +606,11 @@ simplifyLit (Neg l) = case simplifyLit l of
     Bottom -> Top
     sl -> Neg sl
 simplifyLit l = l
+
+
+toUnionList :: LitPattern -> [LitPattern]
+toUnionList (a `Union` b) = toUnionList a ++ toUnionList b
+toUnionList a = [a]
 
 pairsToGraphMap :: (Ord a) => [a] -> [(a,a)] -> [(a,a,[a])]
 pairsToGraphMap vertices edges = 
@@ -1250,7 +1263,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
         --We only need to cover patterns that are possible for the given datatypes
         let theSafetyConstr =
                 case theUnionType of
-                    Nothing -> CTrue -- inputPatterns << safetyRHS 
+                    Nothing -> inputPatterns << safetyRHS 
                     Just u -> (inputPatterns `intersect` unionToLitPattern maxDepth unionMap u discrType) << (safetyRHS )
         logIO $ "Case branch telling safety " ++ show theSafetyConstr
         tellSafety branches pathConstr theSafetyConstr region PatError.BadCase (map (\(a,_,_)->a) litBranches)
