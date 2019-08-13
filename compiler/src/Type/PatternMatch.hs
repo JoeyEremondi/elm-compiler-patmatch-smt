@@ -539,6 +539,7 @@ simplifyConstraint (CImplies x y ) =  case (simplifyConstraint x, simplifyConstr
     (CTrue, sy) -> simplifyConstraint y
     (CFalse, _) -> CTrue
     (sx, CImplies sx2 sy) -> simplifyConstraint (CImplies (sx /\ sx2) sy)
+    (sx, CAnd sys) -> simplifyConstraint $ CAnd $ map (CImplies sx) sys
     (sx, sy) -> CImplies sx sy
 simplifyConstraint (CNonEmpty x) = case simplifyLit x of
     Top -> CTrue
@@ -1249,7 +1250,7 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
         --We only need to cover patterns that are possible for the given datatypes
         let theSafetyConstr =
                 case theUnionType of
-                    Nothing -> inputPatterns << safetyRHS 
+                    Nothing -> CTrue -- inputPatterns << safetyRHS 
                     Just u -> (inputPatterns `intersect` unionToLitPattern maxDepth unionMap u discrType) << (safetyRHS )
         logIO $ "Case branch telling safety " ++ show theSafetyConstr
         tellSafety branches pathConstr theSafetyConstr region PatError.BadCase (map (\(a,_,_)->a) litBranches)
@@ -1501,7 +1502,10 @@ constrainDefUnrolled tyMap _GammaPath@(_Gamma, pathConstr) def = do
             let theSafetyList = getSafetyConstrs optSafety
             let theSafetyConstr = CAnd theSafetyList
             let safetyFreeVars =  constrFreeVars theSafetyConstr
-            relevantConstraints <- removeUnreachableConstraints safetyFreeVars optConstrList (theSafetyConstr : optConstrList ) 
+            --A fake type containiing all free variables in the safety constraints
+            --This makes sure we don't get rid of relevant variables for the safety
+            let fakeType = foldr (\var ty -> (Fun (Unit :@ (SetVar var)) ty) :@ Top) (Unit :@ Top) safetyFreeVars 
+            (_, relevantConstraints, _) <- optimizeConstr_ True fakeType optConstrList (unSafety optSafety) 
             let relevantConstraint = CAnd relevantConstraints
             mConstraintSoln <- solveConstraint ( theSafetyConstr /\ relevantConstraint)
             case mConstraintSoln of
