@@ -1249,8 +1249,8 @@ constrainExpr tyMap _GammaPath (A.At region expr)  =
         --We only need to cover patterns that are possible for the given datatypes
         let theSafetyConstr =
                 case theUnionType of
-                    Nothing -> CTrue
-                    Just u -> ((inputPatterns `intersect` unionToLitPattern maxDepth unionMap u discrType) << (safetyRHS ))
+                    Nothing -> inputPatterns << safetyRHS 
+                    Just u -> (inputPatterns `intersect` unionToLitPattern maxDepth unionMap u discrType) << (safetyRHS )
         logIO $ "Case branch telling safety " ++ show theSafetyConstr
         tellSafety branches pathConstr theSafetyConstr region PatError.BadCase (map (\(a,_,_)->a) litBranches)
         branchConstrs <-
