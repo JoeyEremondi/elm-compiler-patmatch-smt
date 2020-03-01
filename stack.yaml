@@ -42,7 +42,7 @@ extra-deps:
  - simple-smt-0.9.4
  - language-glsl-0.3.0
  - github : JoeyEremondi/SetConstraintsSMT
-   commit: "d5ef3caacd8f59d2678b47d55a9de1de09b56946" 
+   commit: "03bb754" 
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
