@@ -1,3 +1,5 @@
+NOTE: This is the fork of the Elm compiler accompanying [Set Constraints, Pattern Match Analysis and SMT](https://arxiv.org/abs/1905.09423).  
+
 # The Elm Compiler
 
 Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/).
